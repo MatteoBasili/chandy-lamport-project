@@ -1,0 +1,24 @@
+{
+  "nodes": [
+    {
+      "name": "P0",
+      "ip" : "localhost",
+      "port" : 12340,
+      "appPort": 22340
+    },
+    {
+      "name": "P1",
+      "ip" : "localhost",
+      "port" : 12341,
+      "appPort": 22341
+    },
+    {
+      "name": "P2",
+      "ip": "localhost",
+      "port": 12342,
+      "appPort": 22342
+    }
+  ],
+  "initialBalance" : 1000,
+  "sendAttempts" : 10
+}
