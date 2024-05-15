@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	appName    = "node_app"
-	lowerBound = 0
-	upperBound = 100
+	appName       = "node_app"
+	sendMsgMethod = "NodeApp.SendAppMsg"
+	lowerBound    = 0
+	upperBound    = 100
 )
 
 var RPCConn map[string]*rpc.Client
@@ -100,27 +101,27 @@ func TestMsg(t *testing.T) {
 	}()
 
 	msg1 := utils.NewAppMsg("MS1", genCasNum(lowerBound, upperBound), 0, 1)
-	go utils.RunRPCCommand("NodeApp.SendAppMsg", RPCConn["P0"], msg1, 1, respMsgCh)
+	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)
 	fmt.Println("Test: ordered 1st msg")
 
 	msg2 := utils.NewAppMsg("MS2", genCasNum(lowerBound, upperBound), 0, 1)
-	go utils.RunRPCCommand("NodeApp.SendAppMsg", RPCConn["P0"], msg2, 2, respMsgCh)
+	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg2, 2, respMsgCh)
 	fmt.Println("Test: ordered 2nd msg")
 
 	msg3 := utils.NewAppMsg("MS3", genCasNum(lowerBound, upperBound), 0, 2)
-	go utils.RunRPCCommand("NodeApp.SendAppMsg", RPCConn["P0"], msg3, 3, respMsgCh)
+	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg3, 3, respMsgCh)
 	fmt.Println("Test: ordered 3rd msg")
 
 	msg4 := utils.NewAppMsg("MS4", genCasNum(lowerBound, upperBound), 2, 0)
-	go utils.RunRPCCommand("NodeApp.SendAppMsg", RPCConn["P2"], msg4, 4, respMsgCh)
+	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg4, 4, respMsgCh)
 	fmt.Println("Test: ordered 4th msg")
 
 	msg5 := utils.NewAppMsg("MS5", genCasNum(lowerBound, upperBound), 1, 0)
-	go utils.RunRPCCommand("NodeApp.SendAppMsg", RPCConn["P1"], msg5, 5, respMsgCh)
+	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg5, 5, respMsgCh)
 	fmt.Println("Test: ordered 5th msg")
 
 	msg6 := utils.NewAppMsg("MS6", genCasNum(lowerBound, upperBound), 2, 1)
-	go utils.RunRPCCommand("NodeApp.SendAppMsg", RPCConn["P2"], msg6, 6, respMsgCh)
+	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg6, 6, respMsgCh)
 	fmt.Println("Test: ordered 6th msg")
 
 	time.Sleep(5 * time.Second)
