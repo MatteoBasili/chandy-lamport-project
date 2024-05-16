@@ -1,23 +1,23 @@
 package utils
 
-type ProcessState struct {
-	Name         string
+type NodeState struct {
+	NodeName     string
 	Balance      int
-	SentMsgs     []AppMessage
+	SentMsgs     map[string]AppMessage
 	ReceivedMsgs []AppMessage
-	//Busy         bool // Process is doing a snapshot
+	Busy         bool // Process is doing a snapshot
 }
 
-/*func (n ProcessState) String() string {
+/*func (n NodeState) String() string {
 	var res string
 	res += "Sent: [ "
 	for node, m := range n.SentMsgs {
-		res += fmt.Sprintf(" %s-> %s,", m.Body, node)
+		res += fmt.Sprintf(" %s-> %s,", m.Msg.Body, node)
 	}
 	res += " ], "
 	res += "Recv: [ "
-	for _, m := range n.RecvMsg {
-		res += fmt.Sprintf(" %s,", m.Body)
+	for _, m := range n.ReceivedMsgs {
+		res += fmt.Sprintf(" %s,", m.Msg.Body)
 	}
 	res += " ]"
 	return res
@@ -40,9 +40,9 @@ type ChState struct {
 }*/
 
 type FullState struct {
-	Process  ProcessState
-	Channels map[string]ChState
-	//RecvAllMarks bool
+	Node         NodeState
+	Channels     map[string]ChState
+	AllMarksRecv bool
 }
 
 /*func (as FullState) String() string {
@@ -51,7 +51,7 @@ type FullState struct {
 	for chKey := range as.Channels {
 		res += fmt.Sprintf("[ %s ] ==> %s;", chKey, as.Channels[chKey])
 	}
-	if !as.RecvAllMarks {
+	if !as.AllMarksRecv {
 		res += "\n----------------NOT RECEIVED ALL MARKS---------"
 	}
 	return res

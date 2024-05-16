@@ -9,53 +9,72 @@ import (
 	"net/rpc"
 	"os"
 	"sdccProject/src/process"
+	"sdccProject/src/snapshot"
 	"sdccProject/src/utils"
 	"strconv"
+	"time"
 )
 
 type NodeApp struct {
 	node         *process.Process
+	snap         *snapshot.SnapNode
 	netLayout    utils.NetLayout
-	sendAppMsgCh chan utils.AppMsgWithResp
+	sendAppMsgCh chan utils.RespMessage
 	recvAppMsgCh chan utils.AppMessage
 	log          *utils.Logger
 }
 
-func NewNodeApp(idxNet int) *NodeApp {
+func NewNodeApp(netIdx int) *NodeApp {
 	var nodeApp NodeApp
 
 	// Read Network Layout
 	var network utils.NetLayout
 	network = utils.ReadConfig()
-	if len(network.Nodes) < idxNet+1 {
-		panic("At least " + strconv.Itoa(idxNet+1) + " processes are needed")
+	if len(network.Nodes) < netIdx+1 {
+		panic("At least " + strconv.Itoa(netIdx+1) + " processes are needed")
 	}
 	nodeApp.netLayout = network
 
-	nodeApp.sendAppMsgCh = make(chan utils.AppMsgWithResp, 10) // node <--    msg   --- app
-	nodeApp.recvAppMsgCh = make(chan utils.AppMessage, 10)     // node ---    msg   --> app
+	// Create channels
+	nodeApp.sendAppMsgCh = make(chan utils.RespMessage, 10) // node <--    msg   --- app
+	nodeApp.recvAppMsgCh = make(chan utils.AppMessage, 10)  // node ---    msg   --> app
+	currentStateCh := make(chan utils.FullState, 10)        // node <-- FullState --- snap
+	recvStateCh := make(chan utils.FullState, 10)           // node --- FullState --> snap
+	sendMarkCh := make(chan utils.AppMessage, 10)           // node <-- SendMark --> snap
+	recvMarkCh := make(chan utils.AppMessage, 10)           // node --- mark|msg --> snap
+	sendMsgCh := make(chan utils.AppMessage, 10)            // node <-- SendMark --> snap
 
 	// Register struct
-	gob.Register(utils.AppMessage{})
-	nodeApp.log = utils.InitLoggers(strconv.Itoa(idxNet))
-	nodeApp.node = process.NewProcess(idxNet, network, nodeApp.sendAppMsgCh, nodeApp.recvAppMsgCh, nodeApp.log)
+	gob.Register(utils.Message{})
+	nodeApp.log = utils.InitLoggers(strconv.Itoa(netIdx))
+	nodeApp.node = process.NewProcess(netIdx, currentStateCh, recvStateCh, sendMarkCh, recvMarkCh, sendMsgCh, nodeApp.sendAppMsgCh, nodeApp.recvAppMsgCh, network, nodeApp.log)
+	nodeApp.snap = snapshot.NewSnapNode(netIdx, currentStateCh, recvStateCh, sendMarkCh, recvMarkCh, sendMsgCh, &network, nodeApp.log)
 	return &nodeApp
+}
+
+func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
+	*resp = a.snap.MakeSnapshot()
+	a.log.Info.Printf("Received global state: %v\n", resp)
+	return nil
+}
+
+func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *interface{}) error {
+	responseCh := make(chan utils.AppMessage)
+	a.log.Info.Printf("Sending MSG %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.netLayout.Nodes[rq.To].Name)
+	a.sendAppMsgCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
+	res := <-responseCh
+	if res.To != -1 {
+		time.Sleep(1 * time.Second)
+		_ = a.SendAppMsg(rq, resp)
+	}
+	return nil
 }
 
 func (a *NodeApp) recvAppMsg() {
 	for {
 		appMsg := <-a.recvAppMsgCh
-		a.log.Info.Printf("MSG %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.ID, appMsg.Body, a.netLayout.Nodes[appMsg.From].Name, a.node.Balance)
+		a.log.Info.Printf("MSG %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.Msg.ID, appMsg.Msg.Body, a.netLayout.Nodes[appMsg.From].Name, a.node.Balance)
 	}
-}
-
-func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *interface{}) error {
-	responseCh := make(chan utils.AppMessage)
-	a.log.Info.Printf("Sending MSG %s [Amount: %d] to: %s...\n", rq.ID, rq.Body, a.netLayout.Nodes[rq.To].Name)
-	a.sendAppMsgCh <- utils.AppMsgWithResp{Msg: *rq, RespCh: responseCh}
-	_ = <-responseCh
-	a.log.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", rq.ID, rq.Body, a.netLayout.Nodes[rq.To].Name, a.node.Balance)
-	return nil
 }
 
 func main() {

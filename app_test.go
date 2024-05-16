@@ -42,7 +42,7 @@ func setupNetwork() {
 	}
 	fmt.Printf("Net layout: %v\n", netLayout.Nodes)
 
-	gob.Register(utils.AppMessage{})
+	gob.Register(utils.Message{})
 	// Start govec logger
 	config := govec.GetDefaultConfig()
 	config.UseTimestamps = true
