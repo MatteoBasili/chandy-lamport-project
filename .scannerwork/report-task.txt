@@ -1,7 +1,0 @@
-organization=matteobasili
-projectKey=MatteoBasili_Chandy-Lamport
-serverUrl=https://sonarcloud.io
-serverVersion=8.0.0.54437
-dashboardUrl=https://sonarcloud.io/dashboard?id=MatteoBasili_Chandy-Lamport
-ceTaskId=AY-CJMSSf9f0vzJel9Hx
-ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AY-CJMSSf9f0vzJel9Hx
