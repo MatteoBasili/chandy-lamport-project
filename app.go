@@ -128,7 +128,7 @@ func runApp() {
 	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg7, 7, respMsgCh)
 	fmt.Println("Test: ordered 7th msg")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(3 * time.Second)
 	fmt.Println("Test: ordered last GS")
 	utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
 	gs = <-respSnapCh
