@@ -16,12 +16,12 @@ type NodeState struct {
 func (n NodeState) String() string {
 	var res string
 	res += "Balance: $" + strconv.Itoa(n.Balance) + ", "
-	res += "Sent: [ "
+	res += "Sent: ["
 	for node, m := range n.SentMsgs {
-		res += fmt.Sprintf(" %s-> %s,", m.Msg.ID, node)
+		res += fmt.Sprintf(" %s -> %s,", m.Msg.ID, node)
 	}
 	res += " ], "
-	res += "Recv: [ "
+	res += "Recv: ["
 	for _, m := range n.ReceivedMsgs {
 		res += fmt.Sprintf(" %s,", m.Msg.ID)
 	}

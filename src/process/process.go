@@ -128,9 +128,9 @@ func (p *Process) sender() {
 					p.Logger.Error.Panicf("Cannot send app msg: %s", err)
 				}
 				p.UpdateBalance(detMsg.Msg.Body, "sent")
+				p.SendMsgCh <- detMsg
 				responseCh <- utils.NewAppMsg("", -1, -1, -1)
 				p.Logger.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
-				p.SendMsgCh <- detMsg
 			} else {
 				p.Logger.Warning.Println("Cannot send app msg while node is performing global snapshot")
 				responseCh <- detMsg
@@ -147,7 +147,7 @@ func (p *Process) sender() {
 			p.Mutex.Lock()
 			p.FullState = state
 			p.Mutex.Unlock()
-			p.Logger.Info.Println("Node state saved")
+			p.Logger.Info.Println("Node state saved", p.FullState.String()) // DEBUG
 			if state.AllMarksRecv {
 				outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all", state, opts)
 				if err := p.sendGroup(outBuf, nil); err != nil {
