@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/DistributedClocks/GoVector/govec"
-	"github.com/DistributedClocks/GoVector/govec/vrpc"
 	"net"
 	"net/rpc"
+	"net/rpc/jsonrpc"
 	"os"
 	"sdccProject/src/process"
 	"sdccProject/src/snapshot"
@@ -46,11 +45,11 @@ func NewNodeApp(netIdx int) *NodeApp {
 func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
 	*resp = a.snap.MakeSnapshot()
 	a.log.Info.Printf("Received global state: %v\n", resp)
+	a.log.Info.Printf("Balance: $%d\n", resp.GS[a.node.Info.Idx].Node.Balance)
 	return nil
 }
 
-func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *interface{}) error {
-	fmt.Println("SEND APP", rq) //DEBUG
+func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 	responseCh := make(chan utils.AppMessage)
 	a.log.Info.Printf("Sending MSG %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.node.NetLayout.Nodes[rq.To].Name)
 	a.node.SendAppMsgCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
@@ -99,13 +98,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	rpc.HandleHTTP()
 
 	l, err = net.Listen("tcp", ":"+args[1])
 	if err != nil {
 		panic(err)
 	}
-	options := govec.GetDefaultLogOptions()
-	vrpc.ServeRPCConn(server, l, myNodeApp.log.GoVector, options)
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			panic(err)
+		}
+		go server.ServeCodec(jsonrpc.NewServerCodec(conn))
+	}
 	return
 }

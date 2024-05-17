@@ -1,12 +1,16 @@
 package utils
 
 import (
-	"github.com/vmihailenco/msgpack/v5"
 	"log"
 	"net/rpc"
 	"os"
 	"os/exec"
 )
+
+// Result represents the result of the RPC call
+type Result struct {
+	Result int
+}
 
 func RunRPCSnapshot(conn *rpc.Client, chResp chan GlobalState) {
 	go func() {
@@ -21,12 +25,7 @@ func RunRPCSnapshot(conn *rpc.Client, chResp chan GlobalState) {
 
 func RunRPCCommand(method string, conn *rpc.Client, content interface{}, resp int, chResp chan int) {
 	go func() {
-		data, err := msgpack.Marshal(content)
-		if err != nil {
-			//return nil, err
-		}
-
-		err = conn.Call(method, data, nil)
+		err := conn.Call(method, &content, nil)
 		if err != nil {
 			panic(err)
 		}

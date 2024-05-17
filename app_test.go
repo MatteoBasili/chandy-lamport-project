@@ -2,10 +2,9 @@ package main_test
 
 import (
 	"fmt"
-	"github.com/DistributedClocks/GoVector/govec"
-	"github.com/DistributedClocks/GoVector/govec/vrpc"
 	"math/rand"
 	"net/rpc"
+	"net/rpc/jsonrpc"
 	"os"
 	"sdccProject/src/utils"
 	"strconv"
@@ -41,11 +40,6 @@ func setupNetwork() {
 	}
 	fmt.Printf("Net layout: %v\n", netLayout.Nodes)
 
-	// Start govec logger
-	config := govec.GetDefaultConfig()
-	config.UseTimestamps = true
-	logger := govec.InitGoVector("T", utils.OutputDir+"GoVector/LogFileTest", config)
-
 	RPCConn = make(map[string]*rpc.Client)
 
 	for idx, node := range netLayout.Nodes {
@@ -57,7 +51,7 @@ func setupNetwork() {
 		var err error
 		for i := 0; i < netLayout.SendAttempts; i++ {
 			time.Sleep(3 * time.Second) // Wait for RPC initialization
-			clientRPC, err = vrpc.RPCDial("tcp", node.IP+":"+strconv.Itoa(node.AppPort), logger, govec.GetDefaultLogOptions())
+			clientRPC, err = jsonrpc.Dial("tcp", node.IP+":"+strconv.Itoa(node.AppPort))
 			if err == nil {
 				break
 			}
@@ -104,7 +98,7 @@ func TestMsgAndSnapshot(t *testing.T) {
 	fmt.Println("Test: ordered 3rd msg")
 
 	time.Sleep(2 * time.Second)
-	//utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
+	utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
 	fmt.Println("Test: ordered GS")
 
 	msg4 := utils.NewAppMsg("MS4", genCasNum(lowerBound, upperBound), 2, 0)
@@ -129,12 +123,12 @@ func TestMsgAndSnapshot(t *testing.T) {
 	fmt.Printf("Snapshot completed: %v\n", gs)
 
 	msg7 := utils.NewAppMsg("MS7 - last", genCasNum(lowerBound, upperBound), 0, 2)
-	utils.RunRPCCommand("App.SendMsg", RPCConn["P0"], msg7, 7, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg7, 7, respMsgCh)
 	fmt.Println("Test: ordered 7th msg")
 
 	time.Sleep(10 * time.Second)
 	fmt.Println("Test: ordered last GS")
-	//utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
+	utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
 	gs = <-respSnapCh
 	fmt.Printf("Snapshot completed: %v\n", gs)
 }
