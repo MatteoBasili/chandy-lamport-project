@@ -41,7 +41,7 @@ type ChState struct {
 
 type FullState struct {
 	Node         NodeState
-	Channels     map[string]ChState
+	Channels     map[int]ChState
 	AllMarksRecv bool
 }
 

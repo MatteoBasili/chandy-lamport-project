@@ -1,7 +1,6 @@
 package main_test
 
 import (
-	"encoding/gob"
 	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
 	"github.com/DistributedClocks/GoVector/govec/vrpc"
@@ -42,7 +41,6 @@ func setupNetwork() {
 	}
 	fmt.Printf("Net layout: %v\n", netLayout.Nodes)
 
-	gob.Register(utils.Message{})
 	// Start govec logger
 	config := govec.GetDefaultConfig()
 	config.UseTimestamps = true
@@ -52,7 +50,7 @@ func setupNetwork() {
 
 	for idx, node := range netLayout.Nodes {
 		// Initialize RPC node
-		go utils.RunCommand("go", "run", appName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort))
+		go utils.RunPromptCmd("go", "run", appName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort))
 
 		// Connect via RPC to the server
 		var clientRPC *rpc.Client
@@ -79,7 +77,7 @@ func terminate() {
 	}
 	fmt.Println("Connections terminated")
 	fmt.Println("Terminating all processes...")
-	utils.RunCommand("taskkill", "/F", "/IM", appName+".exe")
+	utils.RunPromptCmd("taskkill", "/F", "/IM", appName+".exe")
 }
 
 func genCasNum(min int, max int) int {
@@ -88,42 +86,55 @@ func genCasNum(min int, max int) int {
 	return randomInt
 }
 
-func TestMsg(t *testing.T) {
+func TestMsgAndSnapshot(t *testing.T) {
 	nMsgs := 6
 	respMsgCh := make(chan int, nMsgs)
-
-	go func() {
-		for i := 0; i < nMsgs; i++ {
-			msgN := <-respMsgCh
-			fmt.Printf("Msg nº: %d sent\n", msgN)
-		}
-		fmt.Println("All messages sent.")
-	}()
+	respSnapCh := make(chan utils.GlobalState, 1)
 
 	msg1 := utils.NewAppMsg("MS1", genCasNum(lowerBound, upperBound), 0, 1)
-	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)
 	fmt.Println("Test: ordered 1st msg")
 
 	msg2 := utils.NewAppMsg("MS2", genCasNum(lowerBound, upperBound), 0, 1)
-	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg2, 2, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg2, 2, respMsgCh)
 	fmt.Println("Test: ordered 2nd msg")
 
 	msg3 := utils.NewAppMsg("MS3", genCasNum(lowerBound, upperBound), 0, 2)
-	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg3, 3, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg3, 3, respMsgCh)
 	fmt.Println("Test: ordered 3rd msg")
 
+	time.Sleep(2 * time.Second)
+	//utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
+	fmt.Println("Test: ordered GS")
+
 	msg4 := utils.NewAppMsg("MS4", genCasNum(lowerBound, upperBound), 2, 0)
-	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg4, 4, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg4, 4, respMsgCh)
 	fmt.Println("Test: ordered 4th msg")
 
 	msg5 := utils.NewAppMsg("MS5", genCasNum(lowerBound, upperBound), 1, 0)
-	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg5, 5, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg5, 5, respMsgCh)
 	fmt.Println("Test: ordered 5th msg")
 
 	msg6 := utils.NewAppMsg("MS6", genCasNum(lowerBound, upperBound), 2, 1)
-	go utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg6, 6, respMsgCh)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg6, 6, respMsgCh)
 	fmt.Println("Test: ordered 6th msg")
 
-	time.Sleep(5 * time.Second)
-	fmt.Println("Done!")
+	for i := 0; i < nMsgs; i++ {
+		msgN := <-respMsgCh
+		fmt.Printf("Msg nº: %d sent\n", msgN)
+	}
+	fmt.Println("All messages sent.")
+
+	gs := <-respSnapCh
+	fmt.Printf("Snapshot completed: %v\n", gs)
+
+	msg7 := utils.NewAppMsg("MS7 - last", genCasNum(lowerBound, upperBound), 0, 2)
+	utils.RunRPCCommand("App.SendMsg", RPCConn["P0"], msg7, 7, respMsgCh)
+	fmt.Println("Test: ordered 7th msg")
+
+	time.Sleep(10 * time.Second)
+	fmt.Println("Test: ordered last GS")
+	//utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
+	gs = <-respSnapCh
+	fmt.Printf("Snapshot completed: %v\n", gs)
 }

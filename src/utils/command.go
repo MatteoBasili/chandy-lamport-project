@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/vmihailenco/msgpack/v5"
 	"log"
 	"net/rpc"
 	"os"
@@ -10,25 +11,30 @@ import (
 func RunRPCSnapshot(conn *rpc.Client, chResp chan GlobalState) {
 	go func() {
 		var gs GlobalState
-		call := conn.Go("NodeApp.MakeSnapshot", nil, &gs, nil)
-		call = <-call.Done
-		if call.Error != nil {
-			panic(call.Error.Error())
+		err := conn.Call("NodeApp.MakeSnapshot", nil, &gs)
+		if err != nil {
+			panic(err)
 		}
 		chResp <- gs
 	}()
 }
 
 func RunRPCCommand(method string, conn *rpc.Client, content interface{}, resp int, chResp chan int) {
-	call := conn.Go(method, &content, nil, nil)
-	call = <-call.Done
-	if call.Error != nil {
-		panic(call.Error.Error())
-	}
-	chResp <- resp
+	go func() {
+		data, err := msgpack.Marshal(content)
+		if err != nil {
+			//return nil, err
+		}
+
+		err = conn.Call(method, data, nil)
+		if err != nil {
+			panic(err)
+		}
+		chResp <- resp
+	}()
 }
 
-func RunCommand(name string, arg ...string) {
+func RunPromptCmd(name string, arg ...string) {
 	cmd := exec.Command(name, arg...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

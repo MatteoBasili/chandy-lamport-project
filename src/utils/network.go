@@ -7,6 +7,7 @@ import (
 )
 
 type Node struct {
+	Idx     int    `json:"idx"`
 	Name    string `json:"name"`
 	IP      string `json:"ip"`
 	Port    int    `json:"port"`
