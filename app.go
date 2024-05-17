@@ -1,19 +1,18 @@
-package main_test
+package main
 
 import (
 	"fmt"
 	"math/rand"
 	"net/rpc"
 	"net/rpc/jsonrpc"
-	"os"
 	"sdccProject/src/utils"
 	"strconv"
-	"testing"
 	"time"
 )
 
 const (
-	appName       = "node_app"
+	nodeMainDir   = "src/main/"
+	nodeAppName   = "node_app"
 	sendMsgMethod = "NodeApp.SendAppMsg"
 	lowerBound    = 0
 	upperBound    = 100
@@ -22,17 +21,19 @@ const (
 var RPCConn map[string]*rpc.Client
 
 // Connect and initialize RPC nodes
-func TestMain(m *testing.M) {
-	fmt.Println("Starting tests... ")
+func main() {
+	//time.Sleep(1 * time.Second)
+	fmt.Println("Starting environment... ")
+	//time.Sleep(2 * time.Second)
 	setupNetwork()
-	fmt.Println("Execute the tests...")
-	code := m.Run()
+	fmt.Println("Starting application...")
+	//time.Sleep(3 * time.Second)
+	runApp()
 	terminate()
-	os.Exit(code)
+	return
 }
 
 func setupNetwork() {
-
 	var netLayout utils.NetLayout
 	netLayout = utils.ReadConfig()
 	if len(netLayout.Nodes) < 2 {
@@ -44,7 +45,7 @@ func setupNetwork() {
 
 	for idx, node := range netLayout.Nodes {
 		// Initialize RPC node
-		go utils.RunPromptCmd("go", "run", appName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort))
+		go utils.RunPromptCmd("go", "run", nodeMainDir+nodeAppName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort))
 
 		// Connect via RPC to the server
 		var clientRPC *rpc.Client
@@ -65,25 +66,26 @@ func setupNetwork() {
 }
 
 func terminate() {
-	fmt.Println("Tests finished. Closing connections...")
+	fmt.Println("Done! Closing connections...")
 	for _, conn := range RPCConn {
 		_ = conn.Close()
 	}
 	fmt.Println("Connections terminated")
 	fmt.Println("Terminating all processes...")
-	utils.RunPromptCmd("taskkill", "/F", "/IM", appName+".exe")
+	utils.RunPromptCmd("taskkill", "/F", "/IM", nodeAppName+".exe")
 }
 
 func genCasNum(min int, max int) int {
-	rand.New(rand.NewSource(time.Now().UnixNano()))
 	randomInt := rand.Intn(max-min+1) + min
 	return randomInt
 }
 
-func TestMsgAndSnapshot(t *testing.T) {
+func runApp() {
 	nMsgs := 6
 	respMsgCh := make(chan int, nMsgs)
 	respSnapCh := make(chan utils.GlobalState, 1)
+
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	msg1 := utils.NewAppMsg("MS1", genCasNum(lowerBound, upperBound), 0, 1)
 	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)

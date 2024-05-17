@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
 	"sdccProject/src/utils"
 )
@@ -190,6 +191,7 @@ func (n *SnapNode) waitForSnapshot() {
 			indState := <-n.RecvStateCh
 			n.Logger.Info.Printf("Recv State from: %s\n", indState.Node.NodeName)
 			gs.GS = append(gs.GS, indState)
+			fmt.Println("$", gs.GS[i].Node.Balance)
 		}
 		n.Logger.Info.Println("All states gathered")
 

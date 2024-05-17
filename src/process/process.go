@@ -143,10 +143,10 @@ func (p *Process) sender() {
 				p.Logger.Error.Panicf("Cannot send initial mark: %s", err)
 			}
 		case state := <-p.CurrentStateCh:
+			state.Node.Balance = p.getBalance()
 			p.Mutex.Lock()
 			p.FullState = state
 			p.Mutex.Unlock()
-			p.FullState.Node.Balance = p.getBalance()
 			p.Logger.Info.Println("Node state saved")
 			if state.AllMarksRecv {
 				outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all", state, opts)

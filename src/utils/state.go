@@ -1,5 +1,10 @@
 package utils
 
+import (
+	"fmt"
+	"strconv"
+)
+
 type NodeState struct {
 	NodeName     string
 	Balance      int
@@ -8,36 +13,37 @@ type NodeState struct {
 	Busy         bool // Process is doing a snapshot
 }
 
-/*func (n NodeState) String() string {
+func (n NodeState) String() string {
 	var res string
+	res += "Balance: $" + strconv.Itoa(n.Balance) + ", "
 	res += "Sent: [ "
 	for node, m := range n.SentMsgs {
-		res += fmt.Sprintf(" %s-> %s,", m.Msg.Body, node)
+		res += fmt.Sprintf(" %s-> %s,", m.Msg.ID, node)
 	}
 	res += " ], "
 	res += "Recv: [ "
 	for _, m := range n.ReceivedMsgs {
-		res += fmt.Sprintf(" %s,", m.Msg.Body)
+		res += fmt.Sprintf(" %s,", m.Msg.ID)
 	}
 	res += " ]"
 	return res
-}*/
+}
 
 type ChState struct {
 	RecvMsgs  []AppMessage
 	Recording bool
 }
 
-/*func (cs ChState) String() string {
+func (cs ChState) String() string {
 	var res string
 	if cs.Recording {
 		res += "Channel is still recording!!!!!!!!!!!!"
 	}
-	for _, m := range cs.RecvMsg {
-		res += fmt.Sprintf(" %s,", m.Body)
+	for _, m := range cs.RecvMsgs {
+		res += fmt.Sprintf(" %s,", m.Msg.ID)
 	}
 	return res
-}*/
+}
 
 type FullState struct {
 	Node         NodeState
@@ -45,28 +51,27 @@ type FullState struct {
 	AllMarksRecv bool
 }
 
-/*func (as FullState) String() string {
+func (as FullState) String() string {
 	res := fmt.Sprintf("\nState: %s", as.Node)
 	res += fmt.Sprintf("\nChannels:\n")
 	for chKey := range as.Channels {
-		res += fmt.Sprintf("[ %s ] ==> %s;", chKey, as.Channels[chKey])
+		res += fmt.Sprintf("[ %d ] ==> %s;", chKey, as.Channels[chKey])
 	}
 	if !as.AllMarksRecv {
 		res += "\n----------------NOT RECEIVED ALL MARKS---------"
 	}
 	return res
-}*/
+}
 
 type GlobalState struct {
 	GS []FullState
 }
 
-/*
 func (gs GlobalState) String() string {
 	res := "\n"
 	for _, as := range gs.GS {
 		res += "--------------------------------------"
-		res += fmt.Sprintf("Node %s: %s\n", as.Node.Name, as)
+		res += fmt.Sprintf("Node %s: %s\n", as.Node.NodeName, as)
 	}
 	return res
-}*/
+}

@@ -44,7 +44,7 @@ func NewNodeApp(netIdx int) *NodeApp {
 
 func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
 	*resp = a.snap.MakeSnapshot()
-	a.log.Info.Printf("Received global state: %v\n", resp)
+	a.log.Info.Printf("Received global state: %s\n", resp.String())
 	a.log.Info.Printf("Balance: $%d\n", resp.GS[a.node.Info.Idx].Node.Balance)
 	return nil
 }
