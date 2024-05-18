@@ -1,3 +1,0 @@
-Chandy-Lamport :
-	
-B2.https://github.com/MatteoBasili/Chandy-LamportB51https://travis-ci.org/MatteoBasili/Chandy-LamportB95https://github.com/MatteoBasili/Chandy-Lamport/issuesB2.https://github.com/MatteoBasili/Chandy-LamportRMatteoBasili_Chandy-Lamport
