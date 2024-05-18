@@ -21,6 +21,7 @@ type Process struct {
 	Balance        int
 	FullState      utils.FullState
 	Listener       net.Listener
+	SaveStateCh    chan utils.FullState
 	CurrentStateCh chan utils.FullState
 	RecvStateCh    chan utils.FullState
 	MarkCh         utils.MarkChannel
@@ -30,7 +31,7 @@ type Process struct {
 	Mutex          sync.Mutex
 }
 
-func NewProcess(netIdx int, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout utils.NetLayout, logger *utils.Logger) *Process {
+func NewProcess(netIdx int, saveStateCh chan utils.FullState, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout utils.NetLayout, logger *utils.Logger) *Process {
 	var myNode = netLayout.Nodes[netIdx]
 
 	appMsgCh := utils.AppMsgChannel{
@@ -50,6 +51,7 @@ func NewProcess(netIdx int, currentStateCh chan utils.FullState, recvStateCh cha
 		Balance:        netLayout.InitialBalance,
 		FullState:      utils.FullState{},
 		Listener:       listener,
+		SaveStateCh:    saveStateCh,
 		CurrentStateCh: currentStateCh,
 		RecvStateCh:    recvStateCh,
 		MarkCh:         markCh,
@@ -158,11 +160,6 @@ func (p *Process) sendMarkers(opts govec.GoLogOptions) {
 }
 
 func (p *Process) updateState(state utils.FullState, opts govec.GoLogOptions) {
-	state.Node.Balance = p.getBalance()
-	p.Mutex.Lock()
-	p.FullState = state
-	p.Mutex.Unlock()
-	p.Logger.Info.Println("Node state update", p.FullState.String()) // DEBUG
 	if state.AllMarksRecv {
 		outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all...", state, opts)
 		for _, node := range p.NetLayout.Nodes {
@@ -171,6 +168,15 @@ func (p *Process) updateState(state utils.FullState, opts govec.GoLogOptions) {
 				go p.sendDirectMsg(outBuf, node)
 			}
 		}
+	} else {
+		state.Node.Balance = p.getBalance()
+		p.Mutex.Lock()
+		p.FullState = state
+		if state.Node.Busy { // if true, save state; if false, it means that the snapshot is terminated
+			p.SaveStateCh <- state
+		}
+		p.Logger.Info.Println("Node state update")
+		p.Mutex.Unlock()
 	}
 }
 

@@ -1,32 +1,47 @@
 package utils
 
-type Message struct {
-	ID   string
-	Body int
+import (
+	"github.com/DistributedClocks/GoVector/govec"
+	"log"
+	"os"
+)
+
+const OutputDir = "output/"
+
+type Logger struct {
+	// Logs
+	Trace    *log.Logger
+	Info     *log.Logger
+	Warning  *log.Logger
+	Error    *log.Logger
+	GoVector *govec.GoLog
 }
 
-type AppMessage struct {
-	Msg      Message
-	IsMarker bool
-	From     int
-	To       int
-}
+func InitLoggers(name string) *Logger {
 
-type RespMessage struct {
-	AppMsg AppMessage
-	RespCh chan AppMessage
-}
-
-func NewAppMsg(id string, body int, from int, to int) AppMessage {
-	msg := AppMessage{
-		Msg:      Message{ID: id, Body: body},
-		IsMarker: false,
-		From:     from,
-		To:       to,
+	// Initialize log
+	fLog, err := os.OpenFile(OutputDir+"Log_P"+name+".log", os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatalln("Failed to open log file:", err)
 	}
-	return msg
-}
 
-func NewMarkMsg(from int) AppMessage {
-	return AppMessage{Msg: Message{}, IsMarker: true, From: from, To: -1}
+	myLogger := Logger{}
+	myLogger.Trace = log.New(fLog,
+		"TRACE: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+
+	myLogger.Info = log.New(fLog,
+		"INFO: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+
+	myLogger.Warning = log.New(fLog,
+		"WARNING: \t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+
+	myLogger.Error = log.New(fLog,
+		"ERROR: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+
+	//Initialize GoVector logger
+	config := govec.GetDefaultConfig()
+	config.UseTimestamps = true
+	myLogger.GoVector = govec.InitGoVector("P"+name, OutputDir+"GoVector/LogFileP"+name, config)
+
+	return &myLogger
 }

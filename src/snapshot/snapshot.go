@@ -14,6 +14,7 @@ type SnapNode struct {
 	ChannelsStates map[int]utils.ChState
 	nMarks         int8
 
+	SaveStateCh    chan utils.FullState
 	CurrentStateCh chan utils.FullState
 	RecvStateCh    chan utils.FullState
 	MarkCh         utils.MarkChannel
@@ -23,7 +24,7 @@ type SnapNode struct {
 	Logger         *utils.Logger
 }
 
-func NewSnapNode(netIdx int, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
+func NewSnapNode(netIdx int, saveStateCh chan utils.FullState, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
 	var myNode = netLayout.Nodes[netIdx]
 
 	// Initialize channels state
@@ -48,6 +49,7 @@ func NewSnapNode(netIdx int, currentStateCh chan utils.FullState, recvStateCh ch
 		},
 		nMarks:         1,
 		ChannelsStates: chsState,
+		SaveStateCh:    saveStateCh,
 		CurrentStateCh: currentStateCh,
 		RecvStateCh:    recvStateCh,
 		MarkCh:         markCh,
@@ -57,7 +59,6 @@ func NewSnapNode(netIdx int, currentStateCh chan utils.FullState, recvStateCh ch
 		Logger:         logger,
 	}
 	go snapNode.wait()
-	//go snapNode.waitForSnapshot()
 	return snapNode
 }
 
@@ -69,16 +70,7 @@ func (n *SnapNode) MakeSnapshot() utils.GlobalState {
 
 	n.Logger.Info.Println("Saving state...")
 	// Save state
-	n.CurrentStateCh <- utils.FullState{
-		Node:         n.NodeState,
-		Channels:     n.ChannelsStates,
-		AllMarksRecv: false,
-	}
-
-	fmt.Println(n.NodeState.String()) // DEBUG
-	for chKey := range n.ChannelsStates {
-		fmt.Println(n.ChannelsStates[chKey].String())
-	}
+	n.saveProcState()
 
 	// Send markers
 	n.Logger.Info.Println("Sending first Mark...")
@@ -97,6 +89,8 @@ func (n *SnapNode) saveProcState() {
 		Channels:     n.ChannelsStates,
 		AllMarksRecv: false,
 	}
+	state := <-n.SaveStateCh
+	n.NodeState.Balance = state.Node.Balance
 }
 
 func (n *SnapNode) sendBroadMark() {
@@ -153,7 +147,7 @@ func (n *SnapNode) allMarksRecv(lastMark utils.AppMessage) bool {
 	} else {
 
 		// NOT First mark recv, stop recording channel
-		n.Logger.Info.Printf("Recv another MARK from %s\n", n.NetNodes[lastMark.From].Name)
+		n.Logger.Info.Printf("Received MARK from %s\n", n.NetNodes[lastMark.From].Name)
 		n.stopRecCh(lastMark.From)
 	}
 
@@ -180,7 +174,7 @@ func (n *SnapNode) manageRecvMsg(msg utils.AppMessage) {
 			n.endSnapshot()
 		}
 	} else { // Recv a msg
-		if n.NodeState.Busy {
+		if n.ChannelsStates[msg.From].Recording {
 			// Save msg as post-recording
 			chState := n.ChannelsStates[n.NetNodes[msg.From].Idx]
 			chState.RecvMsgs = append(chState.RecvMsgs, msg)
@@ -210,6 +204,7 @@ func (n *SnapNode) endSnapshot() {
 
 	// Restore process state
 	n.NodeState.Busy = false
+	n.NodeState.Balance = -1
 	n.NodeState.SentMsgs = make(map[string]utils.AppMessage)
 	n.NodeState.ReceivedMsgs = make([]utils.AppMessage, 0)
 	n.nMarks = 1

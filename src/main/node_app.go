@@ -30,6 +30,7 @@ func NewNodeApp(netIdx int) *NodeApp {
 	}
 
 	// Create channels
+	saveStateCh := make(chan utils.FullState, 10)
 	currentStateCh := make(chan utils.FullState, 10) // node <-- FullState --- snap
 	recvStateCh := make(chan utils.FullState, 10)    // node --- FullState --> snap
 	markCh := utils.MarkChannel{
@@ -40,15 +41,14 @@ func NewNodeApp(netIdx int) *NodeApp {
 	sendMsgCh := make(chan utils.AppMessage, 10) // node <-- SendMark --> snap
 
 	nodeApp.log = utils.InitLoggers(strconv.Itoa(netIdx))
-	nodeApp.node = process.NewProcess(netIdx, currentStateCh, recvStateCh, markCh, sendMsgCh, network, nodeApp.log)
-	nodeApp.snap = snapshot.NewSnapNode(netIdx, currentStateCh, recvStateCh, markCh, sendMsgCh, &network, nodeApp.log)
+	nodeApp.node = process.NewProcess(netIdx, saveStateCh, currentStateCh, recvStateCh, markCh, sendMsgCh, network, nodeApp.log)
+	nodeApp.snap = snapshot.NewSnapNode(netIdx, saveStateCh, currentStateCh, recvStateCh, markCh, sendMsgCh, &network, nodeApp.log)
 	return &nodeApp
 }
 
 func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
 	*resp = a.snap.MakeSnapshot()
 	a.log.Info.Printf("Received global state: %s\n", resp.String())
-	a.log.Info.Printf("Balance: $%d\n", resp.GS[a.node.Info.Idx].Node.Balance)
 	return nil
 }
 
@@ -113,5 +113,6 @@ func main() {
 		}
 		go server.ServeCodec(jsonrpc.NewServerCodec(conn))
 	}
+
 	return
 }

@@ -81,7 +81,7 @@ func genCasNum(min int, max int) int {
 }
 
 func runApp() {
-	nMsgs := 6
+	nMsgs := 4
 	respMsgCh := make(chan int, nMsgs)
 	respSnapCh := make(chan utils.GlobalState, 1)
 
@@ -91,29 +91,21 @@ func runApp() {
 	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)
 	fmt.Println("Test: ordered 1st msg")
 
-	msg2 := utils.NewAppMsg("MS2", genCasNum(lowerBound, upperBound), 0, 1)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg2, 2, respMsgCh)
+	msg2 := utils.NewAppMsg("MS2", genCasNum(lowerBound, upperBound), 2, 1)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg2, 2, respMsgCh)
 	fmt.Println("Test: ordered 2nd msg")
-
-	msg3 := utils.NewAppMsg("MS3", genCasNum(lowerBound, upperBound), 0, 2)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg3, 3, respMsgCh)
-	fmt.Println("Test: ordered 3rd msg")
 
 	time.Sleep(2 * time.Second)
 	utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
 	fmt.Println("Test: ordered GS")
 
-	msg4 := utils.NewAppMsg("MS4", genCasNum(lowerBound, upperBound), 2, 0)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg4, 4, respMsgCh)
+	msg3 := utils.NewAppMsg("MS3", genCasNum(lowerBound, upperBound), 1, 0)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg3, 3, respMsgCh)
+	fmt.Println("Test: ordered 3rd msg")
+
+	msg4 := utils.NewAppMsg("MS4", genCasNum(lowerBound, upperBound), 1, 2)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg4, 4, respMsgCh)
 	fmt.Println("Test: ordered 4th msg")
-
-	msg5 := utils.NewAppMsg("MS5", genCasNum(lowerBound, upperBound), 1, 0)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg5, 5, respMsgCh)
-	fmt.Println("Test: ordered 5th msg")
-
-	msg6 := utils.NewAppMsg("MS6", genCasNum(lowerBound, upperBound), 2, 1)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg6, 6, respMsgCh)
-	fmt.Println("Test: ordered 6th msg")
 
 	for i := 0; i < nMsgs; i++ {
 		msgN := <-respMsgCh
@@ -124,11 +116,11 @@ func runApp() {
 	gs := <-respSnapCh
 	fmt.Printf("Snapshot completed: %v\n", gs)
 
-	msg7 := utils.NewAppMsg("MS7 - last", genCasNum(lowerBound, upperBound), 0, 2)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg7, 7, respMsgCh)
-	fmt.Println("Test: ordered 7th msg")
+	msg5 := utils.NewAppMsg("MS5 - last", genCasNum(lowerBound, upperBound), 0, 2)
+	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg5, 5, respMsgCh)
+	fmt.Println("Test: ordered 5th msg")
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 	fmt.Println("Test: ordered last GS")
 	utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
 	gs = <-respSnapCh

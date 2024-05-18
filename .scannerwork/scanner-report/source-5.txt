@@ -23,20 +23,20 @@ type Process struct {
 	Listener       net.Listener
 	CurrentStateCh chan utils.FullState
 	RecvStateCh    chan utils.FullState
-	SendMarkCh     chan utils.AppMessage
-	RecvMarkMsgCh  chan utils.AppMessage
+	MarkCh         utils.MarkChannel
 	SendMsgCh      chan utils.AppMessage
-	SendAppMsgCh   chan utils.RespMessage
-	RecvAppMsgCh   chan utils.AppMessage
+	AppMsgCh       utils.AppMsgChannel
 	Logger         *utils.Logger
 	Mutex          sync.Mutex
 }
 
-func NewProcess(netIdx int, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, sendMarkCh chan utils.AppMessage, recvMarkCh chan utils.AppMessage, sendMsgCh chan utils.AppMessage, netLayout utils.NetLayout, logger *utils.Logger) *Process {
+func NewProcess(netIdx int, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout utils.NetLayout, logger *utils.Logger) *Process {
 	var myNode = netLayout.Nodes[netIdx]
 
-	sendAppMsgCh := make(chan utils.RespMessage, 10) // node <--    msg   --- app
-	recvAppMsgCh := make(chan utils.AppMessage, 10)  // node ---    msg   --> app
+	appMsgCh := utils.AppMsgChannel{
+		SendCh: make(chan utils.RespMessage, 10),
+		RecvCh: make(chan utils.AppMessage, 10),
+	}
 
 	// Open Listener port
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(myNode.Port))
@@ -52,11 +52,9 @@ func NewProcess(netIdx int, currentStateCh chan utils.FullState, recvStateCh cha
 		Listener:       listener,
 		CurrentStateCh: currentStateCh,
 		RecvStateCh:    recvStateCh,
-		SendMarkCh:     sendMarkCh,
-		RecvMarkMsgCh:  recvMarkCh,
+		MarkCh:         markCh,
 		SendMsgCh:      sendMsgCh,
-		SendAppMsgCh:   sendAppMsgCh,
-		RecvAppMsgCh:   recvAppMsgCh,
+		AppMsgCh:       appMsgCh,
 		Logger:         logger,
 		Mutex:          sync.Mutex{},
 	}
@@ -65,6 +63,23 @@ func NewProcess(netIdx int, currentStateCh chan utils.FullState, recvStateCh cha
 	go myProcess.sender()
 	go myProcess.receiver()
 	return &myProcess
+}
+
+func (p *Process) sender() {
+	opts := govec.GetDefaultLogOptions()
+	var outBuf []byte
+	outBuf = []byte{'A', 'B'}
+	for {
+		select {
+		case respMsg := <-p.AppMsgCh.SendCh:
+			p.sendAppMsg(respMsg, outBuf, opts)
+		case <-p.MarkCh.SendCh:
+			// Send markers
+			p.sendMarkers(opts)
+		case state := <-p.CurrentStateCh:
+			p.updateState(state, opts)
+		}
+	}
 }
 
 func (p *Process) receiver() *utils.Message {
@@ -93,9 +108,9 @@ func (p *Process) receiver() *utils.Message {
 				p.Logger.GoVector.LogLocalEvent(fmt.Sprintf("MSG %s, content: $%d, from [%s]", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name), govec.GetDefaultLogOptions())
 				p.UpdateBalance(recvMsg.Msg.Body, "received")
 				p.Logger.Info.Printf("MSG %s [Amount: %d] received from: %s\n", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name)
-				p.RecvAppMsgCh <- recvMsg
+				p.AppMsgCh.RecvCh <- recvMsg
 			}
-			p.RecvMarkMsgCh <- recvMsg
+			p.MarkCh.RecvCh <- recvMsg
 		} else {
 			var tempState = utils.FullState{}
 			p.Logger.GoVector.UnpackReceive("Receiving State", recvData[0:nBytes], &tempState, govec.GetDefaultLogOptions())
@@ -106,82 +121,57 @@ func (p *Process) receiver() *utils.Message {
 	}
 }
 
-func (p *Process) sender() {
-	opts := govec.GetDefaultLogOptions()
-	var outBuf []byte
-	outBuf = []byte{'A', 'B'}
-	for {
-		select {
-		case respMsg := <-p.SendAppMsgCh:
-			detMsg := respMsg.AppMsg
-			responseCh := respMsg.RespCh
-			p.Mutex.Lock()
-			locState := p.FullState
-			p.Mutex.Unlock()
-			if !locState.Node.Busy { // it is not performing a global snapshot
-				if detMsg.Msg.Body > p.getBalance() {
-					p.Logger.Error.Panicln("Cannot send app msg: not enough money!")
-				}
-				detMsg.From = p.Info.Idx
-				outBuf = p.Logger.GoVector.PrepareSend(fmt.Sprintf("Sending msg %s, content: $%d", detMsg.Msg.ID, detMsg.Msg.Body), detMsg, opts)
-				if err := p.sendGroup(outBuf, &detMsg); err != nil {
-					p.Logger.Error.Panicf("Cannot send app msg: %s", err)
-				}
-				p.UpdateBalance(detMsg.Msg.Body, "sent")
-				p.SendMsgCh <- detMsg
-				responseCh <- utils.NewAppMsg("", -1, -1, -1)
-				p.Logger.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
-			} else {
-				p.Logger.Warning.Println("Cannot send app msg while node is performing global snapshot")
-				responseCh <- detMsg
-			}
-		case mark := <-p.SendMarkCh:
-			// Send markers
-			outBuf := p.Logger.GoVector.PrepareSend("Sending mark", mark, opts)
-			err := p.sendGroup(outBuf, &mark)
-			if err != nil {
-				p.Logger.Error.Panicf("Cannot send initial mark: %s", err)
-			}
-		case state := <-p.CurrentStateCh:
-			state.Node.Balance = p.getBalance()
-			p.Mutex.Lock()
-			p.FullState = state
-			p.Mutex.Unlock()
-			p.Logger.Info.Println("Node state saved", p.FullState.String()) // DEBUG
-			if state.AllMarksRecv {
-				outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all", state, opts)
-				if err := p.sendGroup(outBuf, nil); err != nil {
-					p.Logger.Error.Panicf("Cannot send state msg: %s", err)
-				}
-			}
+func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.GoLogOptions) {
+	detMsg := msg.AppMsg
+	responseCh := msg.RespCh
+	p.Mutex.Lock()
+	locState := p.FullState
+	p.Mutex.Unlock()
+	if !locState.Node.Busy { // it is not performing a global snapshot
+		if detMsg.Msg.Body > p.getBalance() {
+			p.Logger.Error.Panicln("Cannot send app msg: not enough money!")
+		}
+		detMsg.From = p.Info.Idx
+		outBuf = p.Logger.GoVector.PrepareSend(fmt.Sprintf("Sending msg %s, content: $%d", detMsg.Msg.ID, detMsg.Msg.Body), detMsg, opts)
+		node := p.NetLayout.Nodes[detMsg.To]
+		if node.Name != p.Info.Name {
+			go p.sendDirectMsg(outBuf, node)
+		}
+		p.UpdateBalance(detMsg.Msg.Body, "sent")
+		p.SendMsgCh <- detMsg
+		responseCh <- utils.NewAppMsg("", -1, -1, -1)
+		p.Logger.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
+	} else {
+		p.Logger.Warning.Println("Cannot send app msg while node is performing global snapshot")
+		responseCh <- detMsg
+	}
+}
+
+func (p *Process) sendMarkers(opts govec.GoLogOptions) {
+	mark := utils.NewMarkMsg(p.Info.Idx)
+	outBuf := p.Logger.GoVector.PrepareSend("Sending mark", mark, opts)
+	for _, node := range p.NetLayout.Nodes {
+		if node.Name != p.Info.Name {
+			go p.sendDirectMsg(outBuf, node)
 		}
 	}
 }
 
-// Sends req to the group
-func (p *Process) sendGroup(data []byte, msg *utils.AppMessage) error {
-	if msg == nil { // sending state
+func (p *Process) updateState(state utils.FullState, opts govec.GoLogOptions) {
+	state.Node.Balance = p.getBalance()
+	p.Mutex.Lock()
+	p.FullState = state
+	p.Mutex.Unlock()
+	p.Logger.Info.Println("Node state update", p.FullState.String()) // DEBUG
+	if state.AllMarksRecv {
+		outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all...", state, opts)
 		for _, node := range p.NetLayout.Nodes {
 			if node.Name != p.Info.Name {
 				p.Logger.Info.Printf("Sending state to: %s\n", node.Name)
-				go p.sendDirectMsg(data, node)
-			}
-		}
-	} else { // sending mark
-		if msg.IsMarker {
-			for _, node := range p.NetLayout.Nodes {
-				if node.Name != p.Info.Name {
-					go p.sendDirectMsg(data, node)
-				}
-			}
-		} else { // sending msg
-			node := p.NetLayout.Nodes[msg.To]
-			if node.Name != p.Info.Name {
-				go p.sendDirectMsg(data, node)
+				go p.sendDirectMsg(outBuf, node)
 			}
 		}
 	}
-	return nil
 }
 
 func (p *Process) sendDirectMsg(msg []byte, node utils.Node) {

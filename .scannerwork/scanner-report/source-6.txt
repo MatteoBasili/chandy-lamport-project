@@ -16,16 +16,14 @@ type SnapNode struct {
 
 	CurrentStateCh chan utils.FullState
 	RecvStateCh    chan utils.FullState
-	SendMarkCh     chan utils.AppMessage
-	RecvMarkMsgCh  chan utils.AppMessage
+	MarkCh         utils.MarkChannel
 	SendMsgCh      chan utils.AppMessage
-	AppGSCh        chan utils.GlobalState
 	InternalGsCh   chan utils.GlobalState
 	IsLauncher     bool
 	Logger         *utils.Logger
 }
 
-func NewSnapNode(netIdx int, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, sendMarkCh chan utils.AppMessage, recvMarkCh chan utils.AppMessage, sendMsgCh chan utils.AppMessage, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
+func NewSnapNode(netIdx int, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
 	var myNode = netLayout.Nodes[netIdx]
 
 	// Initialize channels state
@@ -52,14 +50,13 @@ func NewSnapNode(netIdx int, currentStateCh chan utils.FullState, recvStateCh ch
 		ChannelsStates: chsState,
 		CurrentStateCh: currentStateCh,
 		RecvStateCh:    recvStateCh,
-		SendMarkCh:     sendMarkCh,
-		RecvMarkMsgCh:  recvMarkCh,
+		MarkCh:         markCh,
 		SendMsgCh:      sendMsgCh,
 		InternalGsCh:   make(chan utils.GlobalState),
 		IsLauncher:     false,
 		Logger:         logger,
 	}
-	go snapNode.waitMsg()
+	go snapNode.wait()
 	//go snapNode.waitForSnapshot()
 	return snapNode
 }
@@ -103,7 +100,7 @@ func (n *SnapNode) saveProcState() {
 }
 
 func (n *SnapNode) sendBroadMark() {
-	n.SendMarkCh <- utils.NewMarkMsg(n.nodeIdx)
+	n.MarkCh.SendCh <- utils.NewMarkMsg(n.nodeIdx)
 }
 
 func (n *SnapNode) startRecChs(nodeIdx int) {
@@ -194,17 +191,6 @@ func (n *SnapNode) manageRecvMsg(msg utils.AppMessage) {
 	}
 }
 
-func (n *SnapNode) waitMsg() {
-	for {
-		select {
-		case msg := <-n.RecvMarkMsgCh: // Recv mark or msg
-			n.manageRecvMsg(msg)
-		case detMsg := <-n.SendMsgCh: // node send msg
-			n.NodeState.SentMsgs[n.NetNodes[detMsg.To].Name] = detMsg
-		}
-	}
-}
-
 func (n *SnapNode) endSnapshot() {
 	// Gather global status and send to app
 	n.Logger.Info.Println("Beginning to gather states...")
@@ -239,5 +225,16 @@ func (n *SnapNode) endSnapshot() {
 	if n.IsLauncher {
 		n.InternalGsCh <- gs
 		n.IsLauncher = false
+	}
+}
+
+func (n *SnapNode) wait() {
+	for {
+		select {
+		case msg := <-n.MarkCh.RecvCh: // Recv mark or msg
+			n.manageRecvMsg(msg)
+		case detMsg := <-n.SendMsgCh: // node send msg
+			n.NodeState.SentMsgs[n.NetNodes[detMsg.To].Name] = detMsg
+		}
 	}
 }

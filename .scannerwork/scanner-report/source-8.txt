@@ -1,47 +1,44 @@
 package utils
 
 import (
-	"github.com/DistributedClocks/GoVector/govec"
 	"log"
+	"net/rpc"
 	"os"
+	"os/exec"
 )
 
-const OutputDir = "output/"
-
-type Logger struct {
-	// Logs
-	Trace    *log.Logger
-	Info     *log.Logger
-	Warning  *log.Logger
-	Error    *log.Logger
-	GoVector *govec.GoLog
+// Result represents the result of the RPC call
+type Result struct {
+	Result int
 }
 
-func InitLoggers(name string) *Logger {
+func RunRPCSnapshot(conn *rpc.Client, chResp chan GlobalState) {
+	go func() {
+		var gs GlobalState
+		err := conn.Call("NodeApp.MakeSnapshot", nil, &gs)
+		if err != nil {
+			panic(err)
+		}
+		chResp <- gs
+	}()
+}
 
-	// Initialize log
-	fLog, err := os.OpenFile(OutputDir+"Log_P"+name+".log", os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file:", err)
+func RunRPCCommand(method string, conn *rpc.Client, content interface{}, resp int, chResp chan int) {
+	go func() {
+		err := conn.Call(method, &content, nil)
+		if err != nil {
+			panic(err)
+		}
+		chResp <- resp
+	}()
+}
+
+func RunPromptCmd(name string, arg ...string) {
+	cmd := exec.Command(name, arg...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		log.Fatal(err)
 	}
-
-	myLogger := Logger{}
-	myLogger.Trace = log.New(fLog,
-		"TRACE: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
-
-	myLogger.Info = log.New(fLog,
-		"INFO: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
-
-	myLogger.Warning = log.New(fLog,
-		"WARNING: \t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
-
-	myLogger.Error = log.New(fLog,
-		"ERROR: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
-
-	//Initialize GoVector logger
-	config := govec.GetDefaultConfig()
-	config.UseTimestamps = true
-	myLogger.GoVector = govec.InitGoVector("P"+name, OutputDir+"GoVector/LogFileP"+name, config)
-
-	return &myLogger
 }

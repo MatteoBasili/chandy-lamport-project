@@ -32,13 +32,16 @@ func NewNodeApp(netIdx int) *NodeApp {
 	// Create channels
 	currentStateCh := make(chan utils.FullState, 10) // node <-- FullState --- snap
 	recvStateCh := make(chan utils.FullState, 10)    // node --- FullState --> snap
-	sendMarkCh := make(chan utils.AppMessage, 10)    // node <-- SendMark --> snap
-	recvMarkCh := make(chan utils.AppMessage, 10)    // node --- mark|msg --> snap
-	sendMsgCh := make(chan utils.AppMessage, 10)     // node <-- SendMark --> snap
+	markCh := utils.MarkChannel{
+		SendCh: make(chan utils.AppMessage, 10),
+		RecvCh: make(chan utils.AppMessage, 10),
+	}
+
+	sendMsgCh := make(chan utils.AppMessage, 10) // node <-- SendMark --> snap
 
 	nodeApp.log = utils.InitLoggers(strconv.Itoa(netIdx))
-	nodeApp.node = process.NewProcess(netIdx, currentStateCh, recvStateCh, sendMarkCh, recvMarkCh, sendMsgCh, network, nodeApp.log)
-	nodeApp.snap = snapshot.NewSnapNode(netIdx, currentStateCh, recvStateCh, sendMarkCh, recvMarkCh, sendMsgCh, &network, nodeApp.log)
+	nodeApp.node = process.NewProcess(netIdx, currentStateCh, recvStateCh, markCh, sendMsgCh, network, nodeApp.log)
+	nodeApp.snap = snapshot.NewSnapNode(netIdx, currentStateCh, recvStateCh, markCh, sendMsgCh, &network, nodeApp.log)
 	return &nodeApp
 }
 
@@ -52,7 +55,7 @@ func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
 func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 	responseCh := make(chan utils.AppMessage)
 	a.log.Info.Printf("Sending MSG %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.node.NetLayout.Nodes[rq.To].Name)
-	a.node.SendAppMsgCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
+	a.node.AppMsgCh.SendCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
 	res := <-responseCh
 	if res.To != -1 {
 		time.Sleep(1 * time.Second)
@@ -63,7 +66,7 @@ func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 
 func (a *NodeApp) recvAppMsg() {
 	for {
-		appMsg := <-a.node.RecvAppMsgCh
+		appMsg := <-a.node.AppMsgCh.RecvCh
 		a.log.Info.Printf("MSG %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.Msg.ID, appMsg.Msg.Body, a.node.NetLayout.Nodes[appMsg.From].Name, a.node.Balance)
 	}
 }
