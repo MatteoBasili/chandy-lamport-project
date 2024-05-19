@@ -20,9 +20,9 @@ type NetLayout struct {
 	SendAttempts   int    `json:"sendAttempts"`
 }
 
-func ReadConfig() NetLayout {
+func ReadConfig(file string) NetLayout {
 	// read file
-	data, err := os.ReadFile("net_config.json")
+	data, err := os.ReadFile(file)
 	if err != nil {
 		panic(err)
 	}

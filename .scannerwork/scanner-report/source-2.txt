@@ -35,7 +35,7 @@ func main() {
 
 func setupNetwork() {
 	var netLayout utils.NetLayout
-	netLayout = utils.ReadConfig()
+	netLayout = utils.ReadConfig("net_config.json")
 	if len(netLayout.Nodes) < 2 {
 		panic("At least 2 processes are needed")
 	}

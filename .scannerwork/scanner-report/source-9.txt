@@ -25,7 +25,7 @@ func NewNodeApp(netIdx int) *NodeApp {
 
 	// Read Network Layout
 	var network utils.NetLayout
-	network = utils.ReadConfig()
+	network = utils.ReadConfig("net_config.json")
 	if len(network.Nodes) < netIdx+1 {
 		panic("At least " + strconv.Itoa(netIdx+1) + " processes are needed")
 	}

@@ -15,15 +15,27 @@ type NodeState struct {
 
 func (n NodeState) String() string {
 	var res string
-	res += "Balance: $" + strconv.Itoa(n.Balance) + ", "
-	res += "Sent: ["
-	for node, m := range n.SentMsgs {
-		res += fmt.Sprintf(" %s -> %s,", m.Msg.ID, node)
+	res += "- Balance: $" + strconv.Itoa(n.Balance) + "\n"
+	res += "- Messages sent: ["
+	var lastNode string
+	for key := range n.SentMsgs {
+		lastNode = key
 	}
-	res += " ], "
-	res += "Recv: ["
-	for _, m := range n.ReceivedMsgs {
-		res += fmt.Sprintf(" %s,", m.Msg.ID)
+	for node, m := range n.SentMsgs {
+		if node == lastNode {
+			res += fmt.Sprintf(" %s -> %s", m.Msg.ID, node)
+		} else {
+			res += fmt.Sprintf(" %s -> %s,", m.Msg.ID, node)
+		}
+	}
+	res += " ]\n"
+	res += "- Messages received: ["
+	for i, m := range n.ReceivedMsgs {
+		if i == len(n.ReceivedMsgs)-1 {
+			res += fmt.Sprintf(" %s", m.Msg.ID)
+		} else {
+			res += fmt.Sprintf(" %s,", m.Msg.ID)
+		}
 	}
 	res += " ]"
 	return res
@@ -37,10 +49,14 @@ type ChState struct {
 func (cs ChState) String() string {
 	var res string
 	if cs.Recording {
-		res += "Channel is still recording!!!!!!!!!!!!"
+		res += "(Channel is still recording!!!!!!!!!!!!) "
 	}
-	for _, m := range cs.RecvMsgs {
-		res += fmt.Sprintf(" %s,", m.Msg.ID)
+	for i, m := range cs.RecvMsgs {
+		if i == len(cs.RecvMsgs)-1 {
+			res += fmt.Sprintf("%s", m.Msg.ID)
+		} else {
+			res += fmt.Sprintf("%s, ", m.Msg.ID)
+		}
 	}
 	return res
 }
@@ -52,10 +68,17 @@ type FullState struct {
 }
 
 func (as FullState) String() string {
-	res := fmt.Sprintf("\nState: %s", as.Node)
+	res := fmt.Sprintf("\nState:\n%s", as.Node)
 	res += fmt.Sprintf("\nChannels:\n")
-	for chKey := range as.Channels {
-		res += fmt.Sprintf("[ %d ] ==> %s;", chKey, as.Channels[chKey])
+	var counter int
+	channelsLen := len(as.Channels)
+
+	for chKey, chVal := range as.Channels {
+		counter++
+		res += fmt.Sprintf("[ %d ] ==> %s", chKey, chVal)
+		if counter != channelsLen {
+			res += "\n"
+		}
 	}
 	if !as.AllMarksRecv {
 		res += "\n----------------NOT RECEIVED ALL MARKS---------"
