@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
 	"sdccProject/src/utils"
 )
@@ -14,17 +13,15 @@ type SnapNode struct {
 	ChannelsStates map[int]utils.ChState
 	nMarks         int8
 
-	SaveStateCh    chan utils.FullState
-	CurrentStateCh chan utils.FullState
-	RecvStateCh    chan utils.FullState
-	MarkCh         utils.MarkChannel
-	SendMsgCh      chan utils.AppMessage
-	InternalGsCh   chan utils.GlobalState
-	IsLauncher     bool
-	Logger         *utils.Logger
+	SendMsgCh    chan utils.AppMessage
+	StatesCh     utils.StatesChannels
+	MarkCh       utils.MarkChannels
+	InternalGsCh chan utils.GlobalState
+	IsLauncher   bool
+	Logger       *utils.Logger
 }
 
-func NewSnapNode(netIdx int, saveStateCh chan utils.FullState, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
+func NewSnapNode(netIdx int, sendMsgCh chan utils.AppMessage, statesCh utils.StatesChannels, markCh utils.MarkChannels, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
 	var myNode = netLayout.Nodes[netIdx]
 
 	// Initialize channels state
@@ -49,9 +46,7 @@ func NewSnapNode(netIdx int, saveStateCh chan utils.FullState, currentStateCh ch
 		},
 		nMarks:         1,
 		ChannelsStates: chsState,
-		SaveStateCh:    saveStateCh,
-		CurrentStateCh: currentStateCh,
-		RecvStateCh:    recvStateCh,
+		StatesCh:       statesCh,
 		MarkCh:         markCh,
 		SendMsgCh:      sendMsgCh,
 		InternalGsCh:   make(chan utils.GlobalState),
@@ -84,12 +79,12 @@ func (n *SnapNode) MakeSnapshot() utils.GlobalState {
 }
 
 func (n *SnapNode) saveProcState() {
-	n.CurrentStateCh <- utils.FullState{
+	n.StatesCh.CurrCh <- utils.FullState{
 		Node:         n.NodeState,
 		Channels:     n.ChannelsStates,
 		AllMarksRecv: false,
 	}
-	state := <-n.SaveStateCh
+	state := <-n.StatesCh.SaveCh
 	n.NodeState.Balance = state.Node.Balance
 }
 
@@ -156,7 +151,7 @@ func (n *SnapNode) allMarksRecv(lastMark utils.AppMessage) bool {
 		n.Logger.Info.Printf("Recv all MARKs\n")
 		n.Logger.GoVector.LogLocalEvent("Recv all MARKs", govec.GetDefaultLogOptions())
 		n.Logger.Info.Println("Sending my state to all...")
-		n.CurrentStateCh <- utils.FullState{
+		n.StatesCh.CurrCh <- utils.FullState{
 			Node:         n.NodeState,
 			Channels:     n.ChannelsStates,
 			AllMarksRecv: true,
@@ -195,10 +190,9 @@ func (n *SnapNode) endSnapshot() {
 		AllMarksRecv: true,
 	})
 	for i := 0; i < len(n.NetNodes)-1; i++ {
-		indState := <-n.RecvStateCh
+		indState := <-n.StatesCh.RecvCh
 		n.Logger.Info.Printf("Recv State from: %s\n", indState.Node.NodeName)
 		gs.GS = append(gs.GS, indState)
-		fmt.Println("$", gs.GS[i].Node.Balance)
 	}
 	n.Logger.Info.Println("All states gathered")
 
@@ -210,7 +204,7 @@ func (n *SnapNode) endSnapshot() {
 	n.nMarks = 1
 
 	// Inform node to continue receiving msg
-	n.CurrentStateCh <- utils.FullState{
+	n.StatesCh.CurrCh <- utils.FullState{
 		Node:         n.NodeState,
 		Channels:     n.ChannelsStates,
 		AllMarksRecv: false,

@@ -14,9 +14,10 @@ import (
 )
 
 type NodeApp struct {
-	node *process.Process
-	snap *snapshot.SnapNode
-	log  *utils.Logger
+	node     *process.Process
+	snap     *snapshot.SnapNode
+	appMsgCh utils.AppMsgChannels
+	log      *utils.Logger
 }
 
 func NewNodeApp(netIdx int) *NodeApp {
@@ -30,19 +31,24 @@ func NewNodeApp(netIdx int) *NodeApp {
 	}
 
 	// Create channels
-	saveStateCh := make(chan utils.FullState, 10)
-	currentStateCh := make(chan utils.FullState, 10) // node <-- FullState --- snap
-	recvStateCh := make(chan utils.FullState, 10)    // node --- FullState --> snap
-	markCh := utils.MarkChannel{
+	nodeApp.appMsgCh = utils.AppMsgChannels{
+		SendToProcCh: make(chan utils.RespMessage, 10),
+		RecvCh:       make(chan utils.AppMessage, 10),
+		SendToSnapCh: make(chan utils.AppMessage, 10),
+	}
+	markCh := utils.MarkChannels{
 		SendCh: make(chan utils.AppMessage, 10),
 		RecvCh: make(chan utils.AppMessage, 10),
 	}
-
-	sendMsgCh := make(chan utils.AppMessage, 10) // node <-- SendMark --> snap
+	statesCh := utils.StatesChannels{
+		SaveCh: make(chan utils.FullState, 10),
+		CurrCh: make(chan utils.FullState, 10),
+		RecvCh: make(chan utils.FullState, 10),
+	}
 
 	nodeApp.log = utils.InitLoggers(strconv.Itoa(netIdx))
-	nodeApp.node = process.NewProcess(netIdx, saveStateCh, currentStateCh, recvStateCh, markCh, sendMsgCh, network, nodeApp.log)
-	nodeApp.snap = snapshot.NewSnapNode(netIdx, saveStateCh, currentStateCh, recvStateCh, markCh, sendMsgCh, &network, nodeApp.log)
+	nodeApp.node = process.NewProcess(netIdx, nodeApp.appMsgCh, statesCh, markCh, network, nodeApp.log)
+	nodeApp.snap = snapshot.NewSnapNode(netIdx, nodeApp.appMsgCh.SendToSnapCh, statesCh, markCh, &network, nodeApp.log)
 	return &nodeApp
 }
 
@@ -55,7 +61,7 @@ func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
 func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 	responseCh := make(chan utils.AppMessage)
 	a.log.Info.Printf("Sending MSG %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.node.NetLayout.Nodes[rq.To].Name)
-	a.node.AppMsgCh.SendCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
+	a.appMsgCh.SendToProcCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
 	res := <-responseCh
 	if res.To != -1 {
 		time.Sleep(1 * time.Second)
@@ -66,7 +72,7 @@ func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 
 func (a *NodeApp) recvAppMsg() {
 	for {
-		appMsg := <-a.node.AppMsgCh.RecvCh
+		appMsg := <-a.appMsgCh.RecvCh
 		a.log.Info.Printf("MSG %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.Msg.ID, appMsg.Msg.Body, a.node.NetLayout.Nodes[appMsg.From].Name, a.node.Balance)
 	}
 }

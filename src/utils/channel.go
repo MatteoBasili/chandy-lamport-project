@@ -1,11 +1,18 @@
 package utils
 
-type MarkChannel struct {
-	SendCh chan AppMessage // node <-- SendMark --> snap
-	RecvCh chan AppMessage // node --- mark|msg --> snap
+type MarkChannels struct {
+	SendCh chan AppMessage // process <-- SendMark --> snap
+	RecvCh chan AppMessage // process --- mark|msg --> snap
 }
 
-type AppMsgChannel struct {
-	SendCh chan RespMessage // node <--    msg   --- app
-	RecvCh chan AppMessage  // node ---    msg   --> app
+type AppMsgChannels struct {
+	SendToProcCh chan RespMessage // app ---    msg   --> process
+	RecvCh       chan AppMessage  // process ---    msg   --> app
+	SendToSnapCh chan AppMessage  // process ---    msg   --> snap
+}
+
+type StatesChannels struct {
+	SaveCh chan FullState // process --- state --> snap
+	CurrCh chan FullState // snap --- state --> process
+	RecvCh chan FullState // process --- state --> snap
 }

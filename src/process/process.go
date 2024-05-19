@@ -16,28 +16,20 @@ const (
 )
 
 type Process struct {
-	Info           utils.Node
-	NetLayout      utils.NetLayout
-	Balance        int
-	FullState      utils.FullState
-	Listener       net.Listener
-	SaveStateCh    chan utils.FullState
-	CurrentStateCh chan utils.FullState
-	RecvStateCh    chan utils.FullState
-	MarkCh         utils.MarkChannel
-	SendMsgCh      chan utils.AppMessage
-	AppMsgCh       utils.AppMsgChannel
-	Logger         *utils.Logger
-	Mutex          sync.Mutex
+	Info      utils.Node
+	NetLayout utils.NetLayout
+	Balance   int
+	FullState utils.FullState
+	Listener  net.Listener
+	StatesCh  utils.StatesChannels
+	MarkCh    utils.MarkChannels
+	AppMsgCh  utils.AppMsgChannels
+	Logger    *utils.Logger
+	Mutex     sync.Mutex
 }
 
-func NewProcess(netIdx int, saveStateCh chan utils.FullState, currentStateCh chan utils.FullState, recvStateCh chan utils.FullState, markCh utils.MarkChannel, sendMsgCh chan utils.AppMessage, netLayout utils.NetLayout, logger *utils.Logger) *Process {
+func NewProcess(netIdx int, appMsgCh utils.AppMsgChannels, statesCh utils.StatesChannels, markCh utils.MarkChannels, netLayout utils.NetLayout, logger *utils.Logger) *Process {
 	var myNode = netLayout.Nodes[netIdx]
-
-	appMsgCh := utils.AppMsgChannel{
-		SendCh: make(chan utils.RespMessage, 10),
-		RecvCh: make(chan utils.AppMessage, 10),
-	}
 
 	// Open Listener port
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(myNode.Port))
@@ -46,19 +38,16 @@ func NewProcess(netIdx int, saveStateCh chan utils.FullState, currentStateCh cha
 	}
 
 	var myProcess = Process{
-		Info:           myNode,
-		NetLayout:      netLayout,
-		Balance:        netLayout.InitialBalance,
-		FullState:      utils.FullState{},
-		Listener:       listener,
-		SaveStateCh:    saveStateCh,
-		CurrentStateCh: currentStateCh,
-		RecvStateCh:    recvStateCh,
-		MarkCh:         markCh,
-		SendMsgCh:      sendMsgCh,
-		AppMsgCh:       appMsgCh,
-		Logger:         logger,
-		Mutex:          sync.Mutex{},
+		Info:      myNode,
+		NetLayout: netLayout,
+		Balance:   netLayout.InitialBalance,
+		FullState: utils.FullState{},
+		Listener:  listener,
+		StatesCh:  statesCh,
+		MarkCh:    markCh,
+		AppMsgCh:  appMsgCh,
+		Logger:    logger,
+		Mutex:     sync.Mutex{},
 	}
 	myProcess.Logger.Trace.Printf("Listening on port: %s. Initial balance : $%d", strconv.Itoa(myNode.Port), myProcess.Balance)
 
@@ -73,12 +62,12 @@ func (p *Process) sender() {
 	outBuf = []byte{'A', 'B'}
 	for {
 		select {
-		case respMsg := <-p.AppMsgCh.SendCh:
+		case respMsg := <-p.AppMsgCh.SendToProcCh:
 			p.sendAppMsg(respMsg, outBuf, opts)
 		case <-p.MarkCh.SendCh:
 			// Send markers
 			p.sendMarkers(opts)
-		case state := <-p.CurrentStateCh:
+		case state := <-p.StatesCh.CurrCh:
 			p.updateState(state, opts)
 		}
 	}
@@ -118,7 +107,7 @@ func (p *Process) receiver() *utils.Message {
 			p.Logger.GoVector.UnpackReceive("Receiving State", recvData[0:nBytes], &tempState, govec.GetDefaultLogOptions())
 			p.Logger.Info.Println("State recv from: ", tempState.Node.NodeName)
 			// Send state to snapshot
-			p.RecvStateCh <- tempState
+			p.StatesCh.RecvCh <- tempState
 		}
 	}
 }
@@ -140,7 +129,7 @@ func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.Go
 			go p.sendDirectMsg(outBuf, node)
 		}
 		p.UpdateBalance(detMsg.Msg.Body, "sent")
-		p.SendMsgCh <- detMsg
+		p.AppMsgCh.SendToSnapCh <- detMsg
 		responseCh <- utils.NewAppMsg("", -1, -1, -1)
 		p.Logger.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
 	} else {
@@ -173,7 +162,7 @@ func (p *Process) updateState(state utils.FullState, opts govec.GoLogOptions) {
 		p.Mutex.Lock()
 		p.FullState = state
 		if state.Node.Busy { // if true, save state; if false, it means that the snapshot is terminated
-			p.SaveStateCh <- state
+			p.StatesCh.SaveCh <- state
 		}
 		p.Logger.Info.Println("Node state update")
 		p.Mutex.Unlock()
