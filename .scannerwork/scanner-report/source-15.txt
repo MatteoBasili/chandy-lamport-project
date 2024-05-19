@@ -1,40 +1,32 @@
 package utils
 
-import (
-	"encoding/json"
-	"fmt"
-	"os"
-)
-
-type Node struct {
-	Idx     int    `json:"idx"`
-	Name    string `json:"name"`
-	IP      string `json:"ip"`
-	Port    int    `json:"port"`
-	AppPort int    `json:"appPort"`
+type Message struct {
+	ID   string
+	Body int
 }
 
-type NetLayout struct {
-	Nodes          []Node `json:"nodes"`
-	InitialBalance int    `json:"initialBalance"`
-	SendAttempts   int    `json:"sendAttempts"`
+type AppMessage struct {
+	Msg      Message
+	IsMarker bool
+	From     int
+	To       int
 }
 
-func ReadConfig() NetLayout {
-	// read file
-	data, err := os.ReadFile("net_config.json")
-	if err != nil {
-		panic(err)
+type RespMessage struct {
+	AppMsg AppMessage
+	RespCh chan AppMessage
+}
+
+func NewAppMsg(id string, body int, from int, to int) AppMessage {
+	msg := AppMessage{
+		Msg:      Message{ID: id, Body: body},
+		IsMarker: false,
+		From:     from,
+		To:       to,
 	}
+	return msg
+}
 
-	fmt.Println("Reading network configuration file...")
-
-	var netCfg NetLayout
-	// parse content of json file to Config struct
-	err = json.Unmarshal(data, &netCfg)
-	if err != nil {
-		panic(err)
-	}
-
-	return netCfg
+func NewMarkMsg(from int) AppMessage {
+	return AppMessage{Msg: Message{}, IsMarker: true, From: from, To: -1}
 }

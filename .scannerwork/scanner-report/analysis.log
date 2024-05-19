@@ -55,6 +55,9 @@ Project scanner properties:
   - sonar.scanner.appVersion=5.0.1.3006
   - sonar.scanner.home=D:\Download\sonar-scanner-5.0.1.3006-windows\bin\..
   - sonar.sourceEncoding=windows-1252
+  - sonar.sources=.
+  - sonar.test.inclusions=**/*_test.go
+  - sonar.tests=.
   - sonar.token=******
   - sonar.verbose=true
   - sonar.working.directory=D:\Go\workspace\src\REPOSITORY\Chandy-Lamport\.scannerwork

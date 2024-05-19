@@ -1,77 +1,40 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
+	"os"
 )
 
-type NodeState struct {
-	NodeName     string
-	Balance      int
-	SentMsgs     map[string]AppMessage
-	ReceivedMsgs []AppMessage
-	Busy         bool // Process is doing a snapshot
+type Node struct {
+	Idx     int    `json:"idx"`
+	Name    string `json:"name"`
+	IP      string `json:"ip"`
+	Port    int    `json:"port"`
+	AppPort int    `json:"appPort"`
 }
 
-func (n NodeState) String() string {
-	var res string
-	res += "Balance: $" + strconv.Itoa(n.Balance) + ", "
-	res += "Sent: ["
-	for node, m := range n.SentMsgs {
-		res += fmt.Sprintf(" %s -> %s,", m.Msg.ID, node)
-	}
-	res += " ], "
-	res += "Recv: ["
-	for _, m := range n.ReceivedMsgs {
-		res += fmt.Sprintf(" %s,", m.Msg.ID)
-	}
-	res += " ]"
-	return res
+type NetLayout struct {
+	Nodes          []Node `json:"nodes"`
+	InitialBalance int    `json:"initialBalance"`
+	SendAttempts   int    `json:"sendAttempts"`
 }
 
-type ChState struct {
-	RecvMsgs  []AppMessage
-	Recording bool
-}
-
-func (cs ChState) String() string {
-	var res string
-	if cs.Recording {
-		res += "Channel is still recording!!!!!!!!!!!!"
+func ReadConfig() NetLayout {
+	// read file
+	data, err := os.ReadFile("net_config.json")
+	if err != nil {
+		panic(err)
 	}
-	for _, m := range cs.RecvMsgs {
-		res += fmt.Sprintf(" %s,", m.Msg.ID)
-	}
-	return res
-}
 
-type FullState struct {
-	Node         NodeState
-	Channels     map[int]ChState
-	AllMarksRecv bool
-}
+	fmt.Println("Reading network configuration file...")
 
-func (as FullState) String() string {
-	res := fmt.Sprintf("\nState: %s", as.Node)
-	res += fmt.Sprintf("\nChannels:\n")
-	for chKey := range as.Channels {
-		res += fmt.Sprintf("[ %d ] ==> %s;", chKey, as.Channels[chKey])
+	var netCfg NetLayout
+	// parse content of json file to Config struct
+	err = json.Unmarshal(data, &netCfg)
+	if err != nil {
+		panic(err)
 	}
-	if !as.AllMarksRecv {
-		res += "\n----------------NOT RECEIVED ALL MARKS---------"
-	}
-	return res
-}
 
-type GlobalState struct {
-	GS []FullState
-}
-
-func (gs GlobalState) String() string {
-	res := "\n"
-	for _, as := range gs.GS {
-		res += "--------------------------------------"
-		res += fmt.Sprintf("Node %s: %s\n", as.Node.NodeName, as)
-	}
-	return res
+	return netCfg
 }
