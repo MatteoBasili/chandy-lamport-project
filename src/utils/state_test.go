@@ -89,6 +89,3 @@ func TestGlobalState_String(t *testing.T) {
 		t.Errorf("Expected %q, but got %q", expected, globalState.String())
 	}
 }
-
-/*"- Balance: $100\n- Messages sent: [ msg1 -> Node2, msg2 -> Node3 ]\n- Messages received: [ msg3, msg4 ]"
-"- Balance: $100\n- Messages sent: [ msg1 -> Node2, msg2 -> Node3 ]\n- Messages received: [ msg3, msg4 ]"*/

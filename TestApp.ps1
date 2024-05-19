@@ -13,7 +13,7 @@ if ((Get-ChildItem -Path $LOG_DIR).Count -gt 0) {
 Get-NetTCPConnection -LocalPort 160 -ErrorAction SilentlyContinue | Where-Object {$_.OwningProcess -ne $null -and $_.OwningProcess -ne 0} | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 
 # Runs Go application
-& go run app.go
+& go test -v globalSnapshot_test.go
 
 # Merges log files
 Get-ChildItem -Path $LOG_DIR -Recurse -Include "*.log" | Get-Content | Set-Content -Path "$LOG_DIR\completeLog.log" -Force

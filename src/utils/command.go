@@ -29,7 +29,9 @@ func RunRPCCommand(method string, conn *rpc.Client, content interface{}, resp in
 		if err != nil {
 			panic(err)
 		}
-		chResp <- resp
+		if chResp == nil {
+			chResp <- resp
+		}
 	}()
 }
 
@@ -41,13 +43,4 @@ func RunPromptCmd(name string, arg ...string) {
 	if err := cmd.Run(); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func RunAPP(method string, conn *rpc.Client, content interface{}) {
-	go func() {
-		err := conn.Call(method, &content, nil)
-		if err != nil {
-			panic(err)
-		}
-	}()
 }

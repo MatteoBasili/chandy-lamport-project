@@ -42,3 +42,12 @@ func RunPromptCmd(name string, arg ...string) {
 		log.Fatal(err)
 	}
 }
+
+func RunAPP(method string, conn *rpc.Client, content interface{}) {
+	go func() {
+		err := conn.Call(method, &content, nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
+}
