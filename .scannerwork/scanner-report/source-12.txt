@@ -1,44 +1,44 @@
 package utils
 
-import (
-	"log"
-	"net/rpc"
-	"os"
-	"os/exec"
-)
-
-// Result represents the result of the RPC call
-type Result struct {
-	Result int
+type MarkChannels struct {
+	SendCh chan AppMessage // process <-- SendMark --> snap
+	RecvCh chan AppMessage // process --- mark|msg --> snap
 }
 
-func RunRPCSnapshot(conn *rpc.Client, chResp chan GlobalState) {
-	go func() {
-		var gs GlobalState
-		err := conn.Call("NodeApp.MakeSnapshot", nil, &gs)
-		if err != nil {
-			panic(err)
-		}
-		chResp <- gs
-	}()
+type AppMsgChannels struct {
+	SendToProcCh chan RespMessage // app ---    msg   --> process
+	RecvCh       chan AppMessage  // process ---    msg   --> app
+	SendToSnapCh chan AppMessage  // process ---    msg   --> snap
 }
 
-func RunRPCCommand(method string, conn *rpc.Client, content interface{}, resp int, chResp chan int) {
-	go func() {
-		err := conn.Call(method, &content, nil)
-		if err != nil {
-			panic(err)
-		}
-		chResp <- resp
-	}()
+type StatesChannels struct {
+	SaveCh chan FullState // process --- state --> snap
+	CurrCh chan FullState // snap --- state --> process
+	RecvCh chan FullState // process --- state --> snap
 }
 
-func RunPromptCmd(name string, arg ...string) {
-	cmd := exec.Command(name, arg...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
+func CreateMarkChans(size int) MarkChannels {
+	markChans := MarkChannels{
+		SendCh: make(chan AppMessage, size),
+		RecvCh: make(chan AppMessage, size),
 	}
+	return markChans
+}
+
+func CreateAppMsgChans(size int) AppMsgChannels {
+	appMsgChans := AppMsgChannels{
+		SendToProcCh: make(chan RespMessage, size),
+		RecvCh:       make(chan AppMessage, size),
+		SendToSnapCh: make(chan AppMessage, size),
+	}
+	return appMsgChans
+}
+
+func CreateStatesChans(size int) StatesChannels {
+	statesChans := StatesChannels{
+		SaveCh: make(chan FullState, size),
+		CurrCh: make(chan FullState, size),
+		RecvCh: make(chan FullState, size),
+	}
+	return statesChans
 }

@@ -1,229 +1,211 @@
-package snapshot
+package process
 
 import (
+	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
+	"net"
 	"sdccProject/src/utils"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
-type SnapNode struct {
-	nodeIdx  int
-	NetNodes []utils.Node
+const (
+	Period = 2000 * time.Millisecond
+)
 
-	NodeState      utils.NodeState
-	ChannelsStates map[int]utils.ChState
-	nMarks         int8
-
-	SendMsgCh    chan utils.AppMessage
-	StatesCh     utils.StatesChannels
-	MarkCh       utils.MarkChannels
-	InternalGsCh chan utils.GlobalState
-	IsLauncher   bool
-	Logger       *utils.Logger
+type Process struct {
+	Info      utils.Node
+	NetLayout utils.NetLayout
+	Balance   int
+	FullState utils.FullState
+	Listener  net.Listener
+	StatesCh  utils.StatesChannels
+	MarkCh    utils.MarkChannels
+	AppMsgCh  utils.AppMsgChannels
+	Logger    *utils.Logger
+	Mutex     sync.Mutex
 }
 
-func NewSnapNode(netIdx int, sendMsgCh chan utils.AppMessage, statesCh utils.StatesChannels, markCh utils.MarkChannels, netLayout *utils.NetLayout, logger *utils.Logger) *SnapNode {
+func NewProcess(netIdx int, appMsgCh utils.AppMsgChannels, statesCh utils.StatesChannels, markCh utils.MarkChannels, netLayout utils.NetLayout, logger *utils.Logger) *Process {
 	var myNode = netLayout.Nodes[netIdx]
 
-	// Initialize channels state
-	chsState := make(map[int]utils.ChState)
-	for idx, node := range netLayout.Nodes {
-		if idx != netIdx {
-			chsState[node.Idx] = utils.ChState{
-				RecvMsgs:  make([]utils.AppMessage, 0),
-				Recording: false,
-			}
-		}
+	// Open Listener port
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(myNode.Port))
+	if err != nil {
+		panic(fmt.Sprintf("ERROR: unable to open port: %s. Error: %s.", strconv.Itoa(myNode.Port), err))
 	}
 
-	snapNode := &SnapNode{
-		nodeIdx:  netIdx,
-		NetNodes: netLayout.Nodes,
-		NodeState: utils.NodeState{
-			NodeName:     myNode.Name,
-			Balance:      -1,
-			SentMsgs:     make(map[string]utils.AppMessage),
-			ReceivedMsgs: make([]utils.AppMessage, 0),
-		},
-		nMarks:         1,
-		ChannelsStates: chsState,
-		StatesCh:       statesCh,
-		MarkCh:         markCh,
-		SendMsgCh:      sendMsgCh,
-		InternalGsCh:   make(chan utils.GlobalState),
-		IsLauncher:     false,
-		Logger:         logger,
+	var myProcess = Process{
+		Info:      myNode,
+		NetLayout: netLayout,
+		Balance:   netLayout.InitialBalance,
+		FullState: utils.FullState{},
+		Listener:  listener,
+		StatesCh:  statesCh,
+		MarkCh:    markCh,
+		AppMsgCh:  appMsgCh,
+		Logger:    logger,
+		Mutex:     sync.Mutex{},
 	}
-	go snapNode.wait()
-	return snapNode
+	myProcess.Logger.Trace.Printf("Listening on port: %s. Initial balance : $%d", strconv.Itoa(myNode.Port), myProcess.Balance)
+
+	go myProcess.sender()
+	go myProcess.receiver()
+	return &myProcess
 }
 
-func (n *SnapNode) MakeSnapshot() utils.GlobalState {
-	n.NodeState.Busy = true // While Busy cannot send new msg
-	n.Logger.Info.Println("Initializing snapshot...")
-	// Save node state, all prerecording msg (sent btw | prev-state ---- mark | are store on n.NodeState.SendAppMsg
-	n.IsLauncher = true
-
-	n.Logger.Info.Println("Saving state...")
-	// Save state
-	n.saveProcState()
-
-	// Send markers
-	n.Logger.Info.Println("Sending first Mark...")
-	n.sendBroadMark()
-
-	// Start channels recording
-	n.startRecChs(n.nodeIdx)
-
-	gs := <-n.InternalGsCh
-	return gs
-}
-
-func (n *SnapNode) saveProcState() {
-	n.StatesCh.CurrCh <- utils.FullState{
-		Node:         n.NodeState,
-		Channels:     n.ChannelsStates,
-		AllMarksRecv: false,
-	}
-	state := <-n.StatesCh.SaveCh
-	n.NodeState.Balance = state.Node.Balance
-}
-
-func (n *SnapNode) sendBroadMark() {
-	n.MarkCh.SendCh <- utils.NewMarkMsg(n.nodeIdx)
-}
-
-func (n *SnapNode) startRecChs(nodeIdx int) {
-	if nodeIdx == n.nodeIdx {
-		for chKey := range n.ChannelsStates {
-			n.ChannelsStates[chKey] = utils.ChState{
-				RecvMsgs:  make([]utils.AppMessage, 0),
-				Recording: true,
-			}
-		}
-	} else {
-		for chKey := range n.ChannelsStates {
-			if chKey != nodeIdx {
-				n.ChannelsStates[chKey] = utils.ChState{
-					RecvMsgs:  make([]utils.AppMessage, 0),
-					Recording: true,
-				}
-			} else {
-				n.ChannelsStates[chKey] = utils.ChState{
-					RecvMsgs:  make([]utils.AppMessage, 0),
-					Recording: false,
-				}
-			}
-		}
-	}
-}
-
-func (n *SnapNode) stopRecCh(nodeIdx int) {
-	tempChState := n.ChannelsStates[nodeIdx]
-	tempChState.Recording = false
-	n.ChannelsStates[nodeIdx] = tempChState
-}
-
-func (n *SnapNode) allMarksRecv(lastMark utils.AppMessage) bool {
-	// First mark recv, save process state
-	if !n.NodeState.Busy {
-		n.NodeState.Busy = true // While Busy cannot send new msg
-		n.Logger.Info.Printf("Recv first MARK from %s\n", n.NetNodes[lastMark.From].Name)
-
-		n.Logger.Info.Println("Saving state...")
-		// Save state
-		n.saveProcState()
-
-		// Send broadcast marks
-		n.sendBroadMark()
-		n.Logger.Info.Printf("Sent broadcast Markers\n")
-
-		// Start channels recording
-		n.startRecChs(lastMark.From)
-	} else {
-
-		// NOT First mark recv, stop recording channel
-		n.Logger.Info.Printf("Received MARK from %s\n", n.NetNodes[lastMark.From].Name)
-		n.stopRecCh(lastMark.From)
-	}
-
-	if n.nMarks == int8(len(n.NetNodes)) {
-		// Send current state to all
-		n.Logger.Info.Printf("Recv all MARKs\n")
-		n.Logger.GoVector.LogLocalEvent("Recv all MARKs", govec.GetDefaultLogOptions())
-		n.Logger.Info.Println("Sending my state to all...")
-		n.StatesCh.CurrCh <- utils.FullState{
-			Node:         n.NodeState,
-			Channels:     n.ChannelsStates,
-			AllMarksRecv: true,
-		}
-		return true
-	}
-	return false
-}
-
-func (n *SnapNode) manageRecvMsg(msg utils.AppMessage) {
-	// Recv a mark
-	if msg.IsMarker {
-		n.nMarks += 1
-		if n.allMarksRecv(msg) {
-			n.endSnapshot()
-		}
-	} else { // Recv a msg
-		if n.ChannelsStates[msg.From].Recording {
-			// Save msg as post-recording
-			chState := n.ChannelsStates[n.NetNodes[msg.From].Idx]
-			chState.RecvMsgs = append(chState.RecvMsgs, msg)
-			n.ChannelsStates[n.NetNodes[msg.From].Idx] = chState
-		} else { // Save msg on node state
-			n.NodeState.ReceivedMsgs = append(n.NodeState.ReceivedMsgs, msg)
-		}
-	}
-}
-
-func (n *SnapNode) endSnapshot() {
-	// Gather global status and send to app
-	n.Logger.Info.Println("Beginning to gather states...")
-	var gs utils.GlobalState
-	gs.GS = append(gs.GS, utils.FullState{
-		Node:         n.NodeState,
-		Channels:     n.ChannelsStates,
-		AllMarksRecv: true,
-	})
-	for i := 0; i < len(n.NetNodes)-1; i++ {
-		indState := <-n.StatesCh.RecvCh
-		n.Logger.Info.Printf("Recv State from: %s\n", indState.Node.NodeName)
-		gs.GS = append(gs.GS, indState)
-	}
-	n.Logger.Info.Println("All states gathered")
-
-	// Restore process state
-	n.NodeState.Busy = false
-	n.NodeState.Balance = -1
-	n.NodeState.SentMsgs = make(map[string]utils.AppMessage)
-	n.NodeState.ReceivedMsgs = make([]utils.AppMessage, 0)
-	n.nMarks = 1
-
-	// Inform node to continue receiving msg
-	n.StatesCh.CurrCh <- utils.FullState{
-		Node:         n.NodeState,
-		Channels:     n.ChannelsStates,
-		AllMarksRecv: false,
-	}
-
-	// Send gs to launcher
-	if n.IsLauncher {
-		n.InternalGsCh <- gs
-		n.IsLauncher = false
-	}
-}
-
-func (n *SnapNode) wait() {
+func (p *Process) sender() {
+	opts := govec.GetDefaultLogOptions()
+	var outBuf []byte
+	outBuf = []byte{'A', 'B'}
 	for {
 		select {
-		case msg := <-n.MarkCh.RecvCh: // Recv mark or msg
-			n.manageRecvMsg(msg)
-		case detMsg := <-n.SendMsgCh: // node send msg
-			n.NodeState.SentMsgs[n.NetNodes[detMsg.To].Name] = detMsg
+		case respMsg := <-p.AppMsgCh.SendToProcCh:
+			p.sendAppMsg(respMsg, outBuf, opts)
+		case <-p.MarkCh.SendCh:
+			// Send markers
+			p.sendMarkers(opts)
+		case state := <-p.StatesCh.CurrCh:
+			p.updateState(state, opts)
 		}
 	}
+}
+
+func (p *Process) receiver() *utils.Message {
+	var conn net.Conn
+	var err error
+	var recvData []byte
+	recvData = make([]byte, 1024)
+
+	for {
+		p.Logger.Trace.Println("Waiting for connection accept...")
+		if conn, err = p.Listener.Accept(); err != nil {
+			p.Logger.Error.Panicf("Server accept connection error: %s", err)
+		}
+		nBytes, err := conn.Read(recvData[0:])
+		if err != nil {
+			p.Logger.Error.Panicf("Reading messagge error: %s", err)
+		}
+		if !strings.Contains(string(recvData[0:nBytes]), "Channels") {
+			// Waiting for MSG or marks
+			var recvMsg utils.AppMessage
+			p.Logger.GoVector.UnpackReceive("Receiving Message", recvData[0:nBytes], &recvMsg, govec.GetDefaultLogOptions())
+			// Send data to snapshot
+			if recvMsg.IsMarker {
+				p.Logger.Info.Printf("MARK recv from: %s\n", p.NetLayout.Nodes[recvMsg.From].Name)
+			} else {
+				p.Logger.GoVector.LogLocalEvent(fmt.Sprintf("MSG %s, content: $%d, from [%s]", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name), govec.GetDefaultLogOptions())
+				p.UpdateBalance(recvMsg.Msg.Body, "received")
+				p.Logger.Info.Printf("MSG %s [Amount: %d] received from: %s\n", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name)
+				p.AppMsgCh.RecvCh <- recvMsg
+			}
+			p.MarkCh.RecvCh <- recvMsg
+		} else {
+			var tempState = utils.FullState{}
+			p.Logger.GoVector.UnpackReceive("Receiving State", recvData[0:nBytes], &tempState, govec.GetDefaultLogOptions())
+			p.Logger.Info.Println("State recv from: ", tempState.Node.NodeName)
+			// Send state to snapshot
+			p.StatesCh.RecvCh <- tempState
+		}
+	}
+}
+
+func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.GoLogOptions) {
+	detMsg := msg.AppMsg
+	responseCh := msg.RespCh
+	p.Mutex.Lock()
+	locState := p.FullState
+	p.Mutex.Unlock()
+	if !locState.Node.Busy { // it is not performing a global snapshot
+		if detMsg.Msg.Body > p.getBalance() {
+			p.Logger.Error.Panicln("Cannot send app msg: not enough money!")
+		}
+		detMsg.From = p.Info.Idx
+		outBuf = p.Logger.GoVector.PrepareSend(fmt.Sprintf("Sending msg %s, content: $%d", detMsg.Msg.ID, detMsg.Msg.Body), detMsg, opts)
+		node := p.NetLayout.Nodes[detMsg.To]
+		if node.Name != p.Info.Name {
+			go p.sendDirectMsg(outBuf, node)
+		}
+		p.UpdateBalance(detMsg.Msg.Body, "sent")
+		p.AppMsgCh.SendToSnapCh <- detMsg
+		responseCh <- utils.NewAppMsg("", -1, -1, -1)
+		p.Logger.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
+	} else {
+		p.Logger.Warning.Println("Cannot send app msg while node is performing global snapshot")
+		responseCh <- detMsg
+	}
+}
+
+func (p *Process) sendMarkers(opts govec.GoLogOptions) {
+	mark := utils.NewMarkMsg(p.Info.Idx)
+	outBuf := p.Logger.GoVector.PrepareSend("Sending mark", mark, opts)
+	for _, node := range p.NetLayout.Nodes {
+		if node.Name != p.Info.Name {
+			go p.sendDirectMsg(outBuf, node)
+		}
+	}
+}
+
+func (p *Process) updateState(state utils.FullState, opts govec.GoLogOptions) {
+	if state.AllMarksRecv {
+		outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all...", state, opts)
+		for _, node := range p.NetLayout.Nodes {
+			if node.Name != p.Info.Name {
+				p.Logger.Info.Printf("Sending state to: %s\n", node.Name)
+				go p.sendDirectMsg(outBuf, node)
+			}
+		}
+	} else {
+		state.Node.Balance = p.getBalance()
+		p.Mutex.Lock()
+		p.FullState = state
+		if state.Node.Busy { // if true, save state; if false, it means that the snapshot is terminated
+			p.StatesCh.SaveCh <- state
+		}
+		p.Logger.Info.Println("Node state update")
+		p.Mutex.Unlock()
+	}
+}
+
+func (p *Process) sendDirectMsg(msg []byte, node utils.Node) {
+	var conn net.Conn
+	var err error
+
+	netAddr := fmt.Sprint(node.IP + ":" + strconv.Itoa(node.Port))
+	conn, err = net.Dial("tcp", netAddr)
+	for i := 0; err != nil && i < p.NetLayout.SendAttempts; i++ {
+		p.Logger.Warning.Printf("Client connection error: %s", err)
+		time.Sleep(Period)
+		conn, err = net.Dial("tcp", netAddr)
+	}
+	if err != nil || conn == nil {
+		p.Logger.Error.Panicf("Client connection error: %v", err)
+	}
+	_, err = conn.Write(msg)
+	if err != nil {
+		p.Logger.Error.Panicf("Sending data error: %v", err)
+	}
+	err = conn.Close()
+	if err != nil {
+		p.Logger.Error.Panicf("Closing connection error: %v", err)
+	}
+}
+
+func (p *Process) UpdateBalance(amount int, status string) {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	switch status {
+	case "sent":
+		p.Balance -= amount
+	case "received":
+		p.Balance += amount
+	}
+}
+
+func (p *Process) getBalance() int {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	return p.Balance
 }

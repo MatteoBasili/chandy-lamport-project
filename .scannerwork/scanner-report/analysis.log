@@ -39,7 +39,7 @@ Project server settings:
   - sonar.xml.file.suffixes=.xml,.xsd,.xsl,.config
   - sonar.yaml.file.suffixes=.yaml,.yml
 Project scanner properties:
-  - sonar.go.coverage.reportPaths=coverage.out
+  - sonar.go.coverage.reportPaths=coverage
   - sonar.go.tests.reportPaths=test-report.out
   - sonar.host.url=https://sonarcloud.io
   - sonar.language=go
