@@ -31,9 +31,20 @@ func NewNodeApp(netIdx int) *NodeApp {
 	}
 
 	// Create channels
-	nodeApp.appMsgCh = utils.CreateAppMsgChans(10)
-	markCh := utils.CreateMarkChans(10)
-	statesCh := utils.CreateStatesChans(10)
+	nodeApp.appMsgCh = utils.AppMsgChannels{
+		SendToProcCh: make(chan utils.RespMessage, 10),
+		RecvCh:       make(chan utils.AppMessage, 10),
+		SendToSnapCh: make(chan utils.AppMessage, 10),
+	}
+	markCh := utils.MarkChannels{
+		SendCh: make(chan utils.AppMessage, 10),
+		RecvCh: make(chan utils.AppMessage, 10),
+	}
+	statesCh := utils.StatesChannels{
+		SaveCh: make(chan utils.FullState, 10),
+		CurrCh: make(chan utils.FullState, 10),
+		RecvCh: make(chan utils.FullState, 10),
+	}
 
 	nodeApp.log = utils.InitLoggers(strconv.Itoa(netIdx))
 	nodeApp.node = process.NewProcess(netIdx, nodeApp.appMsgCh, statesCh, markCh, network, nodeApp.log)

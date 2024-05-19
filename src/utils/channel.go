@@ -16,3 +16,29 @@ type StatesChannels struct {
 	CurrCh chan FullState // snap --- state --> process
 	RecvCh chan FullState // process --- state --> snap
 }
+
+func CreateMarkChans(size int) MarkChannels {
+	markChans := MarkChannels{
+		SendCh: make(chan AppMessage, size),
+		RecvCh: make(chan AppMessage, size),
+	}
+	return markChans
+}
+
+func CreateAppMsgChans(size int) AppMsgChannels {
+	appMsgChans := AppMsgChannels{
+		SendToProcCh: make(chan RespMessage, size),
+		RecvCh:       make(chan AppMessage, size),
+		SendToSnapCh: make(chan AppMessage, size),
+	}
+	return appMsgChans
+}
+
+func CreateStatesChans(size int) StatesChannels {
+	statesChans := StatesChannels{
+		SaveCh: make(chan FullState, size),
+		CurrCh: make(chan FullState, size),
+		RecvCh: make(chan FullState, size),
+	}
+	return statesChans
+}
