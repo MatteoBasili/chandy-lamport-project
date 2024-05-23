@@ -5,57 +5,49 @@ import (
 	"testing"
 )
 
-func TestNewAppMsg(t *testing.T) {
-	id := "123"
-	body := 42
-	from := 1
-	to := 2
+func TestCreateMarkChans(t *testing.T) {
+	size := 10
+	markChans := utils.CreateMarkChans(size)
 
-	msg := utils.NewAppMsg(id, body, from, to)
-
-	if msg.Msg.ID != id {
-		t.Errorf("Expected ID %s, but got %s", id, msg.Msg.ID)
+	if cap(markChans.SendCh) != size {
+		t.Errorf("Expected SendCh channel capacity %d, but got %d", size, cap(markChans.SendCh))
 	}
 
-	if msg.Msg.Body != body {
-		t.Errorf("Expected Body %d, but got %d", body, msg.Msg.Body)
-	}
-
-	if msg.IsMarker {
-		t.Error("Expected IsMarker to be false, but got true")
-	}
-
-	if msg.From != from {
-		t.Errorf("Expected From %d, but got %d", from, msg.From)
-	}
-
-	if msg.To != to {
-		t.Errorf("Expected To %d, but got %d", to, msg.To)
+	if cap(markChans.RecvCh) != size {
+		t.Errorf("Expected RecvCh channel capacity %d, but got %d", size, cap(markChans.RecvCh))
 	}
 }
 
-func TestNewMarkMsg(t *testing.T) {
-	from := 3
+func TestCreateAppMsgChans(t *testing.T) {
+	size := 20
+	appMsgChans := utils.CreateAppMsgChans(size)
 
-	msg := utils.NewMarkMsg(from)
-
-	if msg.Msg.ID != "" {
-		t.Error("Expected ID to be empty string, but got non-empty string")
+	if cap(appMsgChans.SendToProcCh) != size {
+		t.Errorf("Expected SendToProcCh channel capacity %d, but got %d", size, cap(appMsgChans.SendToProcCh))
 	}
 
-	if msg.Msg.Body != 0 {
-		t.Error("Expected Body to be 0, but got non-zero value")
+	if cap(appMsgChans.RecvCh) != size {
+		t.Errorf("Expected RecvCh channel capacity %d, but got %d", size, cap(appMsgChans.RecvCh))
 	}
 
-	if !msg.IsMarker {
-		t.Error("Expected IsMarker to be true, but got false")
+	if cap(appMsgChans.SendToSnapCh) != size {
+		t.Errorf("Expected SendToSnapCh channel capacity %d, but got %d", size, cap(appMsgChans.SendToSnapCh))
+	}
+}
+
+func TestCreateStatesChans(t *testing.T) {
+	size := 30
+	statesChans := utils.CreateStatesChans(size)
+
+	if cap(statesChans.SaveCh) != size {
+		t.Errorf("Expected SaveCh channel capacity %d, but got %d", size, cap(statesChans.SaveCh))
 	}
 
-	if msg.From != from {
-		t.Errorf("Expected From %d, but got %d", from, msg.From)
+	if cap(statesChans.CurrCh) != size {
+		t.Errorf("Expected CurrCh channel capacity %d, but got %d", size, cap(statesChans.CurrCh))
 	}
 
-	if msg.To != -1 {
-		t.Error("Expected To to be -1, but got a different value")
+	if cap(statesChans.RecvCh) != size {
+		t.Errorf("Expected RecvCh channel capacity %d, but got %d", size, cap(statesChans.RecvCh))
 	}
 }

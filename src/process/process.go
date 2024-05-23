@@ -91,21 +91,21 @@ func (p *Process) receiver() *utils.Message {
 		if !strings.Contains(string(recvData[0:nBytes]), "Channels") {
 			// Waiting for MSG or marks
 			var recvMsg utils.AppMessage
-			p.Logger.GoVector.UnpackReceive("Receiving Message", recvData[0:nBytes], &recvMsg, govec.GetDefaultLogOptions())
+			p.Logger.GoVector.UnpackReceive("Receiving message", recvData[0:nBytes], &recvMsg, govec.GetDefaultLogOptions())
 			// Send data to snapshot
 			if recvMsg.IsMarker {
-				p.Logger.Info.Printf("MARK recv from: %s\n", p.NetLayout.Nodes[recvMsg.From].Name)
+				p.Logger.Info.Printf("MARKER received from: %s\n", p.NetLayout.Nodes[recvMsg.From].Name)
 			} else {
-				p.Logger.GoVector.LogLocalEvent(fmt.Sprintf("MSG %s, content: $%d, from [%s]", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name), govec.GetDefaultLogOptions())
+				p.Logger.GoVector.LogLocalEvent(fmt.Sprintf("Message %s, content: $%d, from [%s]", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name), govec.GetDefaultLogOptions())
 				p.UpdateBalance(recvMsg.Msg.Body, "received")
-				p.Logger.Info.Printf("MSG %s [Amount: %d] received from: %s\n", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name)
+				p.Logger.Info.Printf("Message %s [Amount: %d] received from: %s\n", recvMsg.Msg.ID, recvMsg.Msg.Body, p.NetLayout.Nodes[recvMsg.From].Name)
 				p.AppMsgCh.RecvCh <- recvMsg
 			}
 			p.MarkCh.RecvCh <- recvMsg
 		} else {
 			var tempState = utils.FullState{}
 			p.Logger.GoVector.UnpackReceive("Receiving State", recvData[0:nBytes], &tempState, govec.GetDefaultLogOptions())
-			p.Logger.Info.Println("State recv from: ", tempState.Node.NodeName)
+			p.Logger.Info.Println("State received from: ", tempState.Node.NodeName)
 			// Send state to snapshot
 			p.StatesCh.RecvCh <- tempState
 		}
@@ -120,10 +120,11 @@ func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.Go
 	p.Mutex.Unlock()
 	if !locState.Node.Busy { // it is not performing a global snapshot
 		if detMsg.Msg.Body > p.getBalance() {
-			p.Logger.Error.Panicln("Cannot send app msg: not enough money!")
+			p.Logger.Warning.Println("Cannot send app msg: not enough money!")
+			return
 		}
 		detMsg.From = p.Info.Idx
-		outBuf = p.Logger.GoVector.PrepareSend(fmt.Sprintf("Sending msg %s, content: $%d", detMsg.Msg.ID, detMsg.Msg.Body), detMsg, opts)
+		outBuf = p.Logger.GoVector.PrepareSend(fmt.Sprintf("Sending message %s, content: $%d", detMsg.Msg.ID, detMsg.Msg.Body), detMsg, opts)
 		node := p.NetLayout.Nodes[detMsg.To]
 		if node.Name != p.Info.Name {
 			go p.sendDirectMsg(outBuf, node)
@@ -131,7 +132,7 @@ func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.Go
 		p.UpdateBalance(detMsg.Msg.Body, "sent")
 		p.AppMsgCh.SendToSnapCh <- detMsg
 		responseCh <- utils.NewAppMsg("", -1, -1, -1)
-		p.Logger.Info.Printf("MSG %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
+		p.Logger.Info.Printf("Message %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
 	} else {
 		p.Logger.Warning.Println("Cannot send app msg while node is performing global snapshot")
 		responseCh <- detMsg
@@ -140,7 +141,7 @@ func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.Go
 
 func (p *Process) sendMarkers(opts govec.GoLogOptions) {
 	mark := utils.NewMarkMsg(p.Info.Idx)
-	outBuf := p.Logger.GoVector.PrepareSend("Sending mark", mark, opts)
+	outBuf := p.Logger.GoVector.PrepareSend("Sending MARKER", mark, opts)
 	for _, node := range p.NetLayout.Nodes {
 		if node.Name != p.Info.Name {
 			go p.sendDirectMsg(outBuf, node)
@@ -150,7 +151,7 @@ func (p *Process) sendMarkers(opts govec.GoLogOptions) {
 
 func (p *Process) updateState(state utils.FullState, opts govec.GoLogOptions) {
 	if state.AllMarksRecv {
-		outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all...", state, opts)
+		outBuf := p.Logger.GoVector.PrepareSend("Sending my state to all", state, opts)
 		for _, node := range p.NetLayout.Nodes {
 			if node.Name != p.Info.Name {
 				p.Logger.Info.Printf("Sending state to: %s\n", node.Name)

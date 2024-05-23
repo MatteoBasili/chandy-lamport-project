@@ -41,7 +41,7 @@ func NewSnapNode(netIdx int, sendMsgCh chan utils.AppMessage, statesCh utils.Sta
 		NodeState: utils.NodeState{
 			NodeName:     myNode.Name,
 			Balance:      -1,
-			SentMsgs:     make(map[string]utils.AppMessage),
+			SentMsgs:     make([]utils.AppMessage, 0),
 			ReceivedMsgs: make([]utils.AppMessage, 0),
 		},
 		nMarks:         1,
@@ -68,7 +68,7 @@ func (n *SnapNode) MakeSnapshot() utils.GlobalState {
 	n.saveProcState()
 
 	// Send markers
-	n.Logger.Info.Println("Sending first Mark...")
+	n.Logger.Info.Println("Sending broadcast MARKERs...")
 	n.sendBroadMark()
 
 	// Start channels recording
@@ -127,7 +127,7 @@ func (n *SnapNode) allMarksRecv(lastMark utils.AppMessage) bool {
 	// First mark recv, save process state
 	if !n.NodeState.Busy {
 		n.NodeState.Busy = true // While Busy cannot send new msg
-		n.Logger.Info.Printf("Recv first MARK from %s\n", n.NetNodes[lastMark.From].Name)
+		n.Logger.Info.Printf("Received first MARKER from %s\n", n.NetNodes[lastMark.From].Name)
 
 		n.Logger.Info.Println("Saving state...")
 		// Save state
@@ -135,21 +135,21 @@ func (n *SnapNode) allMarksRecv(lastMark utils.AppMessage) bool {
 
 		// Send broadcast marks
 		n.sendBroadMark()
-		n.Logger.Info.Printf("Sent broadcast Markers\n")
+		n.Logger.Info.Printf("Sent broadcast MARKERs\n")
 
 		// Start channels recording
 		n.startRecChs(lastMark.From)
 	} else {
 
 		// NOT First mark recv, stop recording channel
-		n.Logger.Info.Printf("Received MARK from %s\n", n.NetNodes[lastMark.From].Name)
+		n.Logger.Info.Printf("Received MARKER from %s\n", n.NetNodes[lastMark.From].Name)
 		n.stopRecCh(lastMark.From)
 	}
 
 	if n.nMarks == int8(len(n.NetNodes)) {
 		// Send current state to all
-		n.Logger.Info.Printf("Recv all MARKs\n")
-		n.Logger.GoVector.LogLocalEvent("Recv all MARKs", govec.GetDefaultLogOptions())
+		n.Logger.Info.Printf("Received all MARKERs\n")
+		n.Logger.GoVector.LogLocalEvent("Received all MARKERs", govec.GetDefaultLogOptions())
 		n.Logger.Info.Println("Sending my state to all...")
 		n.StatesCh.CurrCh <- utils.FullState{
 			Node:         n.NodeState,
@@ -191,7 +191,7 @@ func (n *SnapNode) endSnapshot() {
 	})
 	for i := 0; i < len(n.NetNodes)-1; i++ {
 		indState := <-n.StatesCh.RecvCh
-		n.Logger.Info.Printf("Recv State from: %s\n", indState.Node.NodeName)
+		n.Logger.Info.Printf("Received state from: %s\n", indState.Node.NodeName)
 		gs.GS = append(gs.GS, indState)
 	}
 	n.Logger.Info.Println("All states gathered")
@@ -199,8 +199,8 @@ func (n *SnapNode) endSnapshot() {
 	// Restore process state
 	n.NodeState.Busy = false
 	n.NodeState.Balance = -1
-	n.NodeState.SentMsgs = make(map[string]utils.AppMessage)
-	n.NodeState.ReceivedMsgs = make([]utils.AppMessage, 0)
+	n.NodeState.SentMsgs = make([]utils.AppMessage, 0)
+	n.NodeState.ReceivedMsgs = n.takePendingMessages()
 	n.nMarks = 1
 
 	// Inform node to continue receiving msg
@@ -217,13 +217,23 @@ func (n *SnapNode) endSnapshot() {
 	}
 }
 
+func (n *SnapNode) takePendingMessages() []utils.AppMessage {
+	var recvMsgs []utils.AppMessage
+	for _, val := range n.ChannelsStates {
+		for i := 0; i < len(val.RecvMsgs); i++ {
+			recvMsgs = append(recvMsgs, val.RecvMsgs[i])
+		}
+	}
+	return recvMsgs
+}
+
 func (n *SnapNode) wait() {
 	for {
 		select {
 		case msg := <-n.MarkCh.RecvCh: // Recv mark or msg
 			n.manageRecvMsg(msg)
 		case detMsg := <-n.SendMsgCh: // node send msg
-			n.NodeState.SentMsgs[n.NetNodes[detMsg.To].Name] = detMsg
+			n.NodeState.SentMsgs = append(n.NodeState.SentMsgs, detMsg)
 		}
 	}
 }

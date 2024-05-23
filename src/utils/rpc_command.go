@@ -1,10 +1,7 @@
 package utils
 
 import (
-	"log"
 	"net/rpc"
-	"os"
-	"os/exec"
 )
 
 // Result represents the result of the RPC call
@@ -29,18 +26,8 @@ func RunRPCCommand(method string, conn *rpc.Client, content interface{}, resp in
 		if err != nil {
 			panic(err)
 		}
-		if chResp == nil {
+		if chResp != nil {
 			chResp <- resp
 		}
 	}()
-}
-
-func RunPromptCmd(name string, arg ...string) {
-	cmd := exec.Command(name, arg...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
-	}
 }

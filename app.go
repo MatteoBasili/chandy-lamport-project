@@ -13,12 +13,11 @@ import (
 )
 
 const (
-	nodeMainDir      = "src/main/"
-	nodeAppName      = "node_app"
 	configFileName   = "net_config.json"
 	sendMsgMethod    = "NodeApp.SendAppMsg"
 	lowerBoundAmount = 1
 	upperBoundAmount = 100
+	execTime         = 10 // Seconds
 )
 
 type Process struct {
@@ -34,14 +33,16 @@ func setupNetwork() ([]*Process, map[string]*rpc.Client) {
 	if len(netLayout.Nodes) < 2 {
 		panic("At least 2 processes are needed")
 	}
-	fmt.Printf("Net layout: %v\n", netLayout.Nodes)
+	time.Sleep(2 * time.Second)
+	fmt.Printf("Net layout:\n%s\n", utils.PrintNetwork(netLayout))
+	time.Sleep(1 * time.Second)
 
 	processes := make([]*Process, len(netLayout.Nodes))
 	rpcConn := make(map[string]*rpc.Client)
 
+	fmt.Println("Connecting to network...")
 	for idx, node := range netLayout.Nodes {
 		// Initialize RPC node
-		go utils.RunPromptCmd("go", "run", nodeMainDir+nodeAppName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort), configFileName)
 		processes[idx] = &Process{Id: node.Idx, Name: node.Name}
 
 		// Connect via RPC to the server
@@ -64,55 +65,11 @@ func setupNetwork() ([]*Process, map[string]*rpc.Client) {
 	return processes, rpcConn
 }
 
-/*func runSameTimeSnapshot(processes []*Process, rpcConn map[string]*rpc.Client) {
-	nMsgs := 4
-	respMsgCh := make(chan int, nMsgs)
-	respSnapCh := make(chan utils.GlobalState, 1)
-
-	msg1 := utils.NewAppMsg("MS1", genRandAmount(lowerBoundAmount, upperBoundAmount), 0, 1)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)
-	fmt.Println("Test: ordered 1st msg")
-
-	msg2 := utils.NewAppMsg("MS2", genRandAmount(lowerBoundAmount, upperBoundAmount), 2, 1)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg2, 2, respMsgCh)
-	fmt.Println("Test: ordered 2nd msg")
-
-	time.Sleep(2 * time.Second)
-	utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
-	fmt.Println("Test: ordered GS")
-
-	msg3 := utils.NewAppMsg("MS3", genRandAmount(lowerBoundAmount, upperBoundAmount), 1, 0)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg3, 3, respMsgCh)
-	fmt.Println("Test: ordered 3rd msg")
-
-	msg4 := utils.NewAppMsg("MS4", genRandAmount(lowerBoundAmount, upperBoundAmount), 1, 2)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg4, 4, respMsgCh)
-	fmt.Println("Test: ordered 4th msg")
-
-	for i := 0; i < nMsgs; i++ {
-		msgN := <-respMsgCh
-		fmt.Printf("Msg nº: %d sent\n", msgN)
-	}
-	fmt.Println("All messages sent.")
-
-	gs := <-respSnapCh
-	fmt.Printf("Snapshot completed: %s\n", gs.String())
-
-	msg5 := utils.NewAppMsg("MS5 - last", genRandAmount(lowerBoundAmount, upperBoundAmount), 0, 2)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg5, 5, respMsgCh)
-	fmt.Println("Test: ordered 5th msg")
-
-	time.Sleep(2 * time.Second)
-	fmt.Println("Test: ordered last GS")
-	utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
-	gs = <-respSnapCh
-	fmt.Printf("Snapshot completed: %s\n", gs.String())
-}*/
-
 func runApp(processes []*Process, rpcConn map[string]*rpc.Client, stop chan struct{}) {
 	var wg sync.WaitGroup
 
 	// Every second, each process transfers some fund to another process
+	fmt.Println("The exchange of messages begins")
 	for _, p := range processes {
 		wg.Add(1)
 		go func(p *Process) {
@@ -124,22 +81,24 @@ func runApp(processes []*Process, rpcConn map[string]*rpc.Client, stop chan stru
 					return
 				case <-time.After(1 * time.Second):
 					msgID := generateMsgID()
-					msg := utils.NewAppMsg("MS"+strconv.FormatUint(msgID, 10), genRandAmount(lowerBoundAmount, upperBoundAmount), p.Id, genRandProc(0, len(processes)-1, p.Id))
+					amount := genRandAmount(lowerBoundAmount, upperBoundAmount)
+					endProcess := genRandProc(0, len(processes)-1, p.Id)
+					msg := utils.NewAppMsg("MSG"+strconv.FormatUint(msgID, 10), amount, p.Id, endProcess)
 					utils.RunRPCCommand(sendMsgMethod, rpcConn[p.Name], msg, -1, nil)
-					fmt.Printf("Test: ordered MS%d\n", msgID)
+					fmt.Printf("App: ordered MSG%d (%s --- $%d ---> P%d)\n", msgID, p.Name, amount, endProcess)
 				}
 			}
 		}(p)
 	}
 
-	// Process P0 takes a snapshot every two seconds
+	// Random process takes a snapshot every two seconds
 	wg.Add(1)
 	respSnapCh := make(chan utils.GlobalState, 1)
 	go func() {
 		defer close(respSnapCh)
 		defer wg.Done()
 		process := getRandomKey(rpcConn)
-		fmt.Println("Snapshot goroutine started")
+		fmt.Printf("Process %s begins taking snapshots\n", process)
 		idGs := 0
 		for {
 			select {
@@ -149,7 +108,11 @@ func runApp(processes []*Process, rpcConn map[string]*rpc.Client, stop chan stru
 				idGs += 1
 				utils.RunRPCSnapshot(rpcConn[process], respSnapCh)
 				gs := <-respSnapCh
-				fmt.Printf("Snapshot %d: %v\n", idGs, gs)
+				fmt.Println()
+				fmt.Println("##################################################")
+				fmt.Printf("* Snapshot %d: %v", idGs, gs)
+				fmt.Println("##################################################")
+				fmt.Println()
 			}
 		}
 	}()
@@ -185,7 +148,9 @@ func generateMsgID() uint64 {
 }
 
 func main() {
+	time.Sleep(1 * time.Second)
 	fmt.Println("Starting environment...")
+	time.Sleep(2 * time.Second)
 	processes, rpcConn := setupNetwork()
 
 	rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -196,16 +161,18 @@ func main() {
 	stop := make(chan struct{})
 
 	go func() {
-		timer := time.NewTimer(10 * time.Second)
+		timer := time.NewTimer(execTime * time.Second)
 		<-timer.C
 		close(stop)
 	}()
 
 	runApp(processes, rpcConn, stop)
+	time.Sleep(1 * time.Second)
 
+	fmt.Println()
 	fmt.Println("Terminating the application...")
 	time.Sleep(3 * time.Second)
 	fmt.Println("Bye!")
-	utils.RunPromptCmd("taskkill", "/IM", nodeAppName+".exe", "/F")
+
 	return
 }

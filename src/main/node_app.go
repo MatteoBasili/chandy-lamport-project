@@ -49,7 +49,7 @@ func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
 
 func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 	responseCh := make(chan utils.AppMessage)
-	a.log.Info.Printf("Sending MSG %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.node.NetLayout.Nodes[rq.To].Name)
+	a.log.Info.Printf("Sending message %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.node.NetLayout.Nodes[rq.To].Name)
 	a.appMsgCh.SendToProcCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
 	res := <-responseCh
 	if res.To != -1 {
@@ -62,7 +62,7 @@ func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
 func (a *NodeApp) recvAppMsg() {
 	for {
 		appMsg := <-a.appMsgCh.RecvCh
-		a.log.Info.Printf("MSG %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.Msg.ID, appMsg.Msg.Body, a.node.NetLayout.Nodes[appMsg.From].Name, a.node.Balance)
+		a.log.Info.Printf("Message %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.Msg.ID, appMsg.Msg.Body, a.node.NetLayout.Nodes[appMsg.From].Name, a.node.Balance)
 	}
 }
 
@@ -86,7 +86,9 @@ func main() {
 	}
 
 	fmt.Printf("Starting P%d...\n", netIdx)
+	time.Sleep(1 * time.Second)
 	myNodeApp := NewNodeApp(netIdx, args[2])
+	time.Sleep(2 * time.Second)
 	fmt.Printf("Process P%d is ready\n", netIdx)
 	go myNodeApp.recvAppMsg()
 

@@ -2,9 +2,11 @@ package main_test
 
 import (
 	"fmt"
+	"log"
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
+	"os/exec"
 	"sdccProject/src/utils"
 	"strconv"
 	"testing"
@@ -12,24 +14,21 @@ import (
 )
 
 const (
-	nodeMainDir      = "src/main/"
-	nodeAppName      = "node_app"
-	sendMsgMethod    = "NodeApp.SendAppMsg"
-	lowerBoundAmount = 1
-	upperBoundAmount = 100
+	nodeMainDir   = "src/main/"
+	nodeAppName   = "node_app"
+	sendMsgMethod = "NodeApp.SendAppMsg"
 )
 
 var tempConfigFile string
 var RPCConn map[string]*rpc.Client
 
-// Connect and initialize RPC nodes
 func TestMain(m *testing.M) {
 	fmt.Println("Starting tests for Global Snapshot...")
+	// Connect and initialize RPC nodes
 	setupNetwork()
 	fmt.Println("Execute the rest of the tests...")
 	m.Run()
 	fmt.Println("Global Snapshot tests finished. Closing...")
-	time.Sleep(1 * time.Second)
 	terminate()
 }
 
@@ -82,7 +81,7 @@ func setupNetwork() {
 
 	for idx, node := range netLayout.Nodes {
 		// Initialize RPC node
-		go utils.RunPromptCmd("go", "run", nodeMainDir+nodeAppName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort), tempConfigFile)
+		go runPromptCmd("go", "run", nodeMainDir+nodeAppName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort), tempConfigFile)
 
 		// Connect via RPC to the server
 		var clientRPC *rpc.Client
@@ -117,7 +116,7 @@ func terminate() {
 	fmt.Println("Temporary config file removed")
 
 	// Terminate processes
-	utils.RunPromptCmd("taskkill", "/IM", nodeAppName+".exe", "/F")
+	runPromptCmd("taskkill", "/IM", nodeAppName+".exe", "/F")
 }
 
 func TestEmptySnapshot(t *testing.T) {
@@ -150,49 +149,71 @@ func TestEmptySnapshot(t *testing.T) {
 	}
 }
 
-/*
 func TestSameTimeSnapshot(t *testing.T) {
-	nMsgs := 4
-	respMsgCh := make(chan int, nMsgs)
-	respSnapCh := make(chan utils.GlobalState, 1)
+	respMsgCh := make(chan int, 1)
+	respSnapCh := make(chan utils.GlobalState, 2)
+	gs := make([]utils.GlobalState, 2)
 
-	msg1 := utils.NewAppMsg("MS1", 55, 0, 1)
+	msg1 := utils.NewAppMsg("MSG1", 55, 0, 1)
 	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg1, 1, respMsgCh)
 	fmt.Println("Test: ordered 1st msg")
+	msg := <-respMsgCh
+	fmt.Printf("Msg nº %d sent\n", msg)
 
-	msg2 := utils.NewAppMsg("MS2", 23, 2, 1)
+	msg2 := utils.NewAppMsg("MSG2", 23, 2, 1)
 	utils.RunRPCCommand(sendMsgMethod, RPCConn["P2"], msg2, 2, respMsgCh)
 	fmt.Println("Test: ordered 2nd msg")
+	msg = <-respMsgCh
+	fmt.Printf("Msg nº %d sent\n", msg)
 
-	time.Sleep(2 * time.Second)
-	utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
-	fmt.Println("Test: ordered GS")
-
-	msg3 := utils.NewAppMsg("MS3", 98, 1, 0)
+	msg3 := utils.NewAppMsg("MSG3", 98, 1, 0)
 	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg3, 3, respMsgCh)
 	fmt.Println("Test: ordered 3rd msg")
+	msg = <-respMsgCh
+	fmt.Printf("Msg nº %d sent\n", msg)
 
-	msg4 := utils.NewAppMsg("MS4", 45, 1, 2)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P1"], msg4, 4, respMsgCh)
-	fmt.Println("Test: ordered 4th msg")
+	go utils.RunRPCSnapshot(RPCConn["P0"], respSnapCh)
+	go utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
+	fmt.Println("Test: ordered GS from P0")
+	fmt.Println("Test: ordered GS from P1")
 
-	for i := 0; i < nMsgs; i++ {
-		msgN := <-respMsgCh
-		fmt.Printf("Msg nº: %d sent\n", msgN)
+	var currSnap utils.GlobalState
+	s0 := make([]string, 2)
+	s1 := make([]string, 2)
+	s2 := make([]string, 2)
+	for i := 0; i < 2; i++ {
+		currSnap = <-respSnapCh
+		gs = append(gs, currSnap)
+		fmt.Printf("Snapshot completed from %s\n", currSnap.GS[0].Node.NodeName)
+		for j := 0; j < 3; j++ {
+			if currSnap.GS[j].Node.NodeName == "P0" {
+				s0[i] = currSnap.GS[j].String()
+				continue
+			} else if currSnap.GS[j].Node.NodeName == "P1" {
+				s1[i] = currSnap.GS[j].String()
+				continue
+			}
+			s2[i] = currSnap.GS[j].String()
+		}
 	}
-	fmt.Println("All messages sent.")
 
-	gs := <-respSnapCh
-	fmt.Printf("Snapshot completed: %s\n", gs.String())
-
-	msg5 := utils.NewAppMsg("MS5 - last", genRandAmount(lowerBoundAmount, upperBoundAmount), 0, 2)
-	utils.RunRPCCommand(sendMsgMethod, RPCConn["P0"], msg5, 5, respMsgCh)
-	fmt.Println("Test: ordered 5th msg")
-
-	time.Sleep(2 * time.Second)
-	fmt.Println("Test: ordered last GS")
-	utils.RunRPCSnapshot(RPCConn["P1"], respSnapCh)
-	gs = <-respSnapCh
-	fmt.Printf("Snapshot completed: %s\n", gs.String())
+	if s0[0] != s0[1] {
+		t.Error("The two states relative to P0 were expected to be equal")
+	}
+	if s1[0] != s1[1] {
+		t.Error("The two states relative to P1 were expected to be equal")
+	}
+	if s2[0] != s2[1] {
+		t.Error("The two states relative to P2 were expected to be equal")
+	}
 }
-*/
+
+func runPromptCmd(name string, arg ...string) {
+	cmd := exec.Command(name, arg...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		log.Fatal(err)
+	}
+}

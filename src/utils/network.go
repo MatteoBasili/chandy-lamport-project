@@ -38,3 +38,19 @@ func ReadConfig(file string) NetLayout {
 
 	return netCfg
 }
+
+func PrintNetwork(layout NetLayout) string {
+	var res string
+	for _, node := range layout.Nodes {
+		res += "—————————————————————————————————— "
+		res += fmt.Sprintf("Process %s:\n", node.Name)
+		res += fmt.Sprintf("- Index: %d\n", node.Idx)
+		res += fmt.Sprintf("- IP: %s\n", node.IP)
+		res += fmt.Sprintf("- Port: %d\n", node.Port)
+		res += fmt.Sprintf("- App port: %d\n", node.AppPort)
+		res += fmt.Sprintf("- Initial Balance: $%d\n", layout.InitialBalance)
+	}
+	res += "**********************************************\n"
+
+	return res
+}
