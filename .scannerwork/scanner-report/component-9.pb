@@ -1,0 +1,1 @@
+	 (2goXÜhrglobalSnapshot_test.go

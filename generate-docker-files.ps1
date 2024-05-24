@@ -51,11 +51,17 @@ RUN go mod download
 # Copy the source code except the files specified in .dockerignore
 COPY . .
 
-# Build the application
-RUN go build -o app ./app.go
+# Copy the final script
+COPY merge-output.sh /merge-output.sh
 
-# Command to run the application
-CMD ["./app"]
+# Set execute permission for the final script
+RUN chmod +x /merge-output.sh
+
+# Build the application
+RUN go build -o application ./app.go
+
+# Commands to run the application and, then, the final script
+CMD ./application; bash /merge-output.sh
 "@
 # Write the Dockerfile content to the file
 Set-Content -Path "Dockerfile.app" -Value $dockerfileAppContent
@@ -70,6 +76,8 @@ $dockerComposeContent =
     container_name: chandy-lamport-app
     networks:
       - chandy-lamport-net
+	volumes:
+      - ./app/output:/app/output
     depends_on:"
 
 # Add dependencies for the app
@@ -94,6 +102,8 @@ foreach ($node in $configFile.nodes) {
     expose:
       - ""$($node.port)""
       - ""$($node.appPort)""
+	volumes:
+      - ./app/output:/app/output
 "
 }
 
