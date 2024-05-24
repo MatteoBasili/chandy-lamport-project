@@ -1,9 +1,9 @@
 SonarCloud plugins:
-  - License for SonarLint 8.0.0.54437 (license)
+  - License for SonarLint 8.0.0.54573 (license)
   - Python Code Quality and Security 4.18.0.15334 (python)
   - XML Code Quality and Security 2.10.0.4108 (xml)
   - JaCoCo 1.3.0.1538 (jacoco)
-  - IaC Code Quality and Security 1.29.0.10169 (iac)
+  - IaC Code Quality and Security 1.30.0.10357 (iac)
   - Text Code Quality and Security 2.10.0.2188 (text)
 Project server settings:
   - sonar.abap.file.suffixes=.abap,.ab4,.flow,.asprog
@@ -18,6 +18,7 @@ Project server settings:
   - sonar.go.file.suffixes=.go
   - sonar.html.file.suffixes=.html,.xhtml,.cshtml,.vbhtml,.aspx,.ascx,.rhtml,.erb,.shtm,.shtml,.cmp,.twig
   - sonar.java.file.suffixes=.java,.jav
+  - sonar.java.springconfig.file.patterns=**/src/main/resources/**/application*.properties,**/src/main/resources/**/application*.yaml,**/src/main/resources/**/application*.yml
   - sonar.javascript.file.suffixes=.js,.jsx,.cjs,.mjs,.vue
   - sonar.json.file.suffixes=.json
   - sonar.jsp.file.suffixes=.jsp,.jspf,.jspx

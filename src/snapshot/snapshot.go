@@ -2,7 +2,7 @@ package snapshot
 
 import (
 	"github.com/DistributedClocks/GoVector/govec"
-	"sdccProject/src/utils"
+	"chandy_lamport/src/utils"
 )
 
 type SnapNode struct {
@@ -60,7 +60,7 @@ func NewSnapNode(netIdx int, sendMsgCh chan utils.AppMessage, statesCh utils.Sta
 func (n *SnapNode) MakeSnapshot() utils.GlobalState {
 	n.NodeState.Busy = true // While Busy cannot send new msg
 	n.Logger.Info.Println("Initializing snapshot...")
-	// Save node state, all prerecording msg (sent btw | prev-state ---- mark | are store on n.NodeState.SendAppMsg
+	// Save main state, all prerecording msg (sent btw | prev-state ---- mark | are store on n.NodeState.SendAppMsg
 	n.IsLauncher = true
 
 	n.Logger.Info.Println("Saving state...")
@@ -174,7 +174,7 @@ func (n *SnapNode) manageRecvMsg(msg utils.AppMessage) {
 			chState := n.ChannelsStates[n.NetNodes[msg.From].Idx]
 			chState.RecvMsgs = append(chState.RecvMsgs, msg)
 			n.ChannelsStates[n.NetNodes[msg.From].Idx] = chState
-		} else { // Save msg on node state
+		} else { // Save msg on main state
 			n.NodeState.ReceivedMsgs = append(n.NodeState.ReceivedMsgs, msg)
 		}
 	}
@@ -203,7 +203,7 @@ func (n *SnapNode) endSnapshot() {
 	n.NodeState.ReceivedMsgs = n.takePendingMessages()
 	n.nMarks = 1
 
-	// Inform node to continue receiving msg
+	// Inform main to continue receiving msg
 	n.StatesCh.CurrCh <- utils.FullState{
 		Node:         n.NodeState,
 		Channels:     n.ChannelsStates,
@@ -232,7 +232,7 @@ func (n *SnapNode) wait() {
 		select {
 		case msg := <-n.MarkCh.RecvCh: // Recv mark or msg
 			n.manageRecvMsg(msg)
-		case detMsg := <-n.SendMsgCh: // node send msg
+		case detMsg := <-n.SendMsgCh: // main send msg
 			n.NodeState.SentMsgs = append(n.NodeState.SentMsgs, detMsg)
 		}
 	}

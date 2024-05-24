@@ -1,27 +1,24 @@
-{
-  "nodes": [
-    {
-      "idx" : 0,
-      "name": "P0",
-      "ip" : "localhost",
-      "port" : 12340,
-      "appPort": 22340
-    },
-    {
-      "idx" : 1,
-      "name": "P1",
-      "ip" : "localhost",
-      "port" : 12341,
-      "appPort": 22341
-    },
-    {
-      "idx" : 2,
-      "name": "P2",
-      "ip": "localhost",
-      "port": 12342,
-      "appPort": 22342
-    }
-  ],
-  "initialBalance" : 1000,
-  "sendAttempts" : 10
-}
+# Use an official Go image as a base
+FROM golang:1.22
+
+# Set the working directory
+WORKDIR /app
+
+# Copy go.mod and go.sum files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the source code except the files specified in .dockerignore
+COPY . .
+
+# Build the application
+RUN go build -o node_app ./src/main/node_app.go
+
+# Expose the application ports
+EXPOSE 12340
+EXPOSE 22340
+
+# Command to run the application
+CMD ["./node_app", "0", "22340", "net_config.json"]

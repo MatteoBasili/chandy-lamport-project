@@ -7,7 +7,7 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"os/exec"
-	"sdccProject/src/utils"
+	"chandy_lamport/src/utils"
 	"strconv"
 	"testing"
 	"time"
@@ -80,7 +80,7 @@ func setupNetwork() {
 	RPCConn = make(map[string]*rpc.Client)
 
 	for idx, node := range netLayout.Nodes {
-		// Initialize RPC node
+		// Initialize RPC main
 		go runPromptCmd("go", "run", nodeMainDir+nodeAppName+".go", strconv.Itoa(idx), strconv.Itoa(node.AppPort), tempConfigFile)
 
 		// Connect via RPC to the server

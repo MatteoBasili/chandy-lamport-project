@@ -1,47 +1,115 @@
-package utils
+package main
 
 import (
-	"github.com/DistributedClocks/GoVector/govec"
-	"log"
+	"fmt"
+	"net"
+	"net/rpc"
+	"net/rpc/jsonrpc"
 	"os"
+	"chandy_lamport/src/process"
+	"chandy_lamport/src/snapshot"
+	"chandy_lamport/src/utils"
+	"strconv"
+	"time"
 )
 
-const OutputDir = "output/"
-
-type Logger struct {
-	// Logs
-	Trace    *log.Logger
-	Info     *log.Logger
-	Warning  *log.Logger
-	Error    *log.Logger
-	GoVector *govec.GoLog
+type NodeApp struct {
+	node     *process.Process
+	snap     *snapshot.SnapNode
+	appMsgCh utils.AppMsgChannels
+	log      *utils.Logger
 }
 
-func InitLoggers(name string) *Logger {
+func NewNodeApp(netIdx int, configFile string) *NodeApp {
+	var nodeApp NodeApp
 
-	// Initialize log
-	fLog, err := os.OpenFile(OutputDir+"Log_P"+name+".log", os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file:", err)
+	// Read Network Layout
+	var network utils.NetLayout
+	network = utils.ReadConfig(configFile)
+	if len(network.Nodes) < netIdx+1 {
+		panic("At least " + strconv.Itoa(netIdx+1) + " processes are needed")
 	}
 
-	myLogger := Logger{}
-	myLogger.Trace = log.New(fLog,
-		"TRACE: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+	// Create channels
+	nodeApp.appMsgCh = utils.CreateAppMsgChans(10)
+	markCh := utils.CreateMarkChans(10)
+	statesCh := utils.CreateStatesChans(10)
 
-	myLogger.Info = log.New(fLog,
-		"INFO: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+	nodeApp.log = utils.InitLoggers(strconv.Itoa(netIdx))
+	nodeApp.node = process.NewProcess(netIdx, nodeApp.appMsgCh, statesCh, markCh, network, nodeApp.log)
+	nodeApp.snap = snapshot.NewSnapNode(netIdx, nodeApp.appMsgCh.SendToSnapCh, statesCh, markCh, &network, nodeApp.log)
+	return &nodeApp
+}
 
-	myLogger.Warning = log.New(fLog,
-		"WARNING: \t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+func (a *NodeApp) MakeSnapshot(_ *interface{}, resp *utils.GlobalState) error {
+	*resp = a.snap.MakeSnapshot()
+	a.log.Info.Printf("Received global state: %s\n", resp.String())
+	return nil
+}
 
-	myLogger.Error = log.New(fLog,
-		"ERROR: \t\t[P"+name+"] ", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+func (a *NodeApp) SendAppMsg(rq *utils.AppMessage, resp *utils.Result) error {
+	responseCh := make(chan utils.AppMessage)
+	a.log.Info.Printf("Sending message %s [Amount: %d] to: %s...\n", rq.Msg.ID, rq.Msg.Body, a.node.NetLayout.Nodes[rq.To].Name)
+	a.appMsgCh.SendToProcCh <- utils.RespMessage{AppMsg: *rq, RespCh: responseCh}
+	res := <-responseCh
+	if res.To != -1 {
+		time.Sleep(1 * time.Second)
+		_ = a.SendAppMsg(rq, resp)
+	}
+	return nil
+}
 
-	//Initialize GoVector logger
-	config := govec.GetDefaultConfig()
-	config.UseTimestamps = true
-	myLogger.GoVector = govec.InitGoVector("P"+name, OutputDir+"GoVector/LogFileP"+name, config)
+func (a *NodeApp) recvAppMsg() {
+	for {
+		appMsg := <-a.appMsgCh.RecvCh
+		a.log.Info.Printf("Message %s [Amount: %d] received from: %s. Current budget: $%d\n", appMsg.Msg.ID, appMsg.Msg.Body, a.node.NetLayout.Nodes[appMsg.From].Name, a.node.Balance)
+	}
+}
 
-	return &myLogger
+func main() {
+	args := os.Args[1:]
+	var err error
+	var netIdx int
+	var l net.Listener
+
+	if len(args) != 3 {
+		panic("Incorrect number of arguments. Usage: go run src/main/node_app.go <0-based main index> <main app RPC port> <net config filename>")
+	}
+
+	netIdx, err = strconv.Atoi(args[0])
+	if err != nil {
+		panic(fmt.Sprintf("Bad argument[0]: %s. Error: %s. Usage: go run src/main/node_app.go <0-based main index> <main app RPC port> <net config filename>", args[0], err))
+	}
+	_, err = strconv.Atoi(args[1])
+	if err != nil {
+		panic(fmt.Sprintf("Bad argument[1]: %s. Error: %s. Usage: go run src/main/node_app.go <0-based main index> <main app RPC port> <net config filename>", args[1], err))
+	}
+
+	fmt.Printf("Starting P%d...\n", netIdx)
+	time.Sleep(1 * time.Second)
+	myNodeApp := NewNodeApp(netIdx, args[2])
+	time.Sleep(2 * time.Second)
+	fmt.Printf("Process P%d is ready\n", netIdx)
+	go myNodeApp.recvAppMsg()
+
+	// Register main app as RPC
+	server := rpc.NewServer()
+	err = server.Register(myNodeApp)
+	if err != nil {
+		panic(err)
+	}
+
+	l, err = net.Listen("tcp", ":"+args[1])
+	if err != nil {
+		panic(err)
+	}
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			panic(err)
+		}
+		go server.ServeCodec(jsonrpc.NewServerCodec(conn))
+	}
+
+	return
 }

@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: chandy-lamport-app
+    networks:
+      - chandy-lamport-net
+    depends_on:
+      - p0
+      - p1
+      - p2
+
+  p0:
+    build:
+      context: .
+      dockerfile: Dockerfile.P0
+    container_name: chandy-lamport-p0
+    networks:
+      - chandy-lamport-net
+    expose:
+      - "12340"
+      - "22340"
+
+  p1:
+    build:
+      context: .
+      dockerfile: Dockerfile.P1
+    container_name: chandy-lamport-p1
+    networks:
+      - chandy-lamport-net
+    expose:
+      - "12341"
+      - "22341"
+
+  p2:
+    build:
+      context: .
+      dockerfile: Dockerfile.P2
+    container_name: chandy-lamport-p2
+    networks:
+      - chandy-lamport-net
+    expose:
+      - "12342"
+      - "22342"
+
+networks:
+  chandy-lamport-net:
+    driver: bridge

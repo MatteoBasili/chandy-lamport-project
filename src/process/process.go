@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
 	"net"
-	"sdccProject/src/utils"
+	"chandy_lamport/src/utils"
 	"strconv"
 	"strings"
 	"sync"
@@ -134,7 +134,7 @@ func (p *Process) sendAppMsg(msg utils.RespMessage, outBuf []byte, opts govec.Go
 		responseCh <- utils.NewAppMsg("", -1, -1, -1)
 		p.Logger.Info.Printf("Message %s [Amount: %d] sent to: %s. Current budget: $%d\n", detMsg.Msg.ID, detMsg.Msg.Body, p.NetLayout.Nodes[detMsg.To].Name, p.getBalance())
 	} else {
-		p.Logger.Warning.Println("Cannot send app msg while node is performing global snapshot")
+		p.Logger.Warning.Println("Cannot send app msg while main is performing global snapshot")
 		responseCh <- detMsg
 	}
 }
@@ -174,7 +174,7 @@ func (p *Process) sendDirectMsg(msg []byte, node utils.Node) {
 	var conn net.Conn
 	var err error
 
-	netAddr := fmt.Sprint(node.IP + ":" + strconv.Itoa(node.Port))
+	netAddr := fmt.Sprint(node.Name + ":" + strconv.Itoa(node.Port))
 	conn, err = net.Dial("tcp", netAddr)
 	for i := 0; err != nil && i < p.NetLayout.SendAttempts; i++ {
 		p.Logger.Warning.Printf("Client connection error: %s", err)

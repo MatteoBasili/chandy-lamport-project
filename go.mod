@@ -1,4 +1,4 @@
-module sdccProject
+module chandy_lamport
 
 go 1.22.2
 

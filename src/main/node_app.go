@@ -6,9 +6,9 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
-	"sdccProject/src/process"
-	"sdccProject/src/snapshot"
-	"sdccProject/src/utils"
+	"chandy_lamport/src/process"
+	"chandy_lamport/src/snapshot"
+	"chandy_lamport/src/utils"
 	"strconv"
 	"time"
 )
@@ -73,16 +73,16 @@ func main() {
 	var l net.Listener
 
 	if len(args) != 3 {
-		panic("Incorrect number of arguments. Usage: go run node_app.go <0-based node index> <node app RPC port> <net config filename>")
+		panic("Incorrect number of arguments. Usage: go run src/main/node_app.go <0-based main index> <main app RPC port> <net config filename>")
 	}
 
 	netIdx, err = strconv.Atoi(args[0])
 	if err != nil {
-		panic(fmt.Sprintf("Bad argument[0]: %s. Error: %s. Usage: go run node_app.go <0-based node index> <node app RPC port> <net config filename>", args[0], err))
+		panic(fmt.Sprintf("Bad argument[0]: %s. Error: %s. Usage: go run src/main/node_app.go <0-based main index> <main app RPC port> <net config filename>", args[0], err))
 	}
 	_, err = strconv.Atoi(args[1])
 	if err != nil {
-		panic(fmt.Sprintf("Bad argument[1]: %s. Error: %s. Usage: go run node_app.go <0-based node index> <node app RPC port> <net config filename>", args[1], err))
+		panic(fmt.Sprintf("Bad argument[1]: %s. Error: %s. Usage: go run src/main/node_app.go <0-based main index> <main app RPC port> <net config filename>", args[1], err))
 	}
 
 	fmt.Printf("Starting P%d...\n", netIdx)
@@ -92,7 +92,7 @@ func main() {
 	fmt.Printf("Process P%d is ready\n", netIdx)
 	go myNodeApp.recvAppMsg()
 
-	// Register node app as RPC
+	// Register main app as RPC
 	server := rpc.NewServer()
 	err = server.Register(myNodeApp)
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"net/rpc"
 )
 
-// Result represents the result of the RPC call
+// Result represents the result of the RPC call "SendAppMsg"
 type Result struct {
 	Result int
 }
