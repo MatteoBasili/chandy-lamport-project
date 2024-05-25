@@ -1,21 +1,20 @@
-# GlobalStateSnapshot
-Design, implementation, and evaluation of the Chandy-Lamport algorithm for snapshotting the global 
-state of a distributed system.
-```@article{chandy1985distributed,
-  title={Distributed snapshots: Determining global states of distributed systems},
-  author={Chandy, K Mani and Lamport, Leslie},
-  journal={ACM Transactions on Computer Systems (TOCS)},
+# Chandy-Lamport distributed algorithm
+Famous algorithm to record a global consistent snapshot of a distributed system/application: a snapshot records the local state of each process along with
+the state of each communication channel used by the processes to communicate.
+
+```@article{ChandyLamportDistributedAlgorithm,
+  title={Distributed Snapshots: Determining Global States of a Distributed System},
+  authors={Leslie Lamport, K. Mani Chandy},
+  journal={ACM Transactions on Computer Systems},
   volume={3},
   number={1},
-  pages={63--75},
-  year={1985},
-  publisher={ACM New York, NY, USA}
+  pages={63-75},
+  year={1985}
 }
 ```
 
 This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
 among the nodes to perform the global snapshot.
-  
 
 # Setup
 - File `github.com/DistributedClocks/GoVector/govec/govec.go` : replace line 431 for 
