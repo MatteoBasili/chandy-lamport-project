@@ -15,7 +15,8 @@ Reference article:
 
 ## Properties
 This project is about design, implementation, and evaluation of the Chandy-Lamport algorithm for snapshotting the global state of a distributed system.
-The solution is tested on a pipelined deployed application that works like this: there are processes that all start with the same balance (in dollars); every second, each process transfers funds to another process at random; a process, also chosen at random, takes a snapshot of the system every two seconds; funds transferred and snapshots taken are displayed to the user. Then, this program calculates a snapshot of financial transactions based on the Chandy-Lamport algorithm.
+The solution is tested on a pipelined deployed application that works like this: there are processes that all start with the same balance (in dollars); every second, each process transfers funds to another process at random; a process, also chosen at random, takes a snapshot of the system every two seconds; this whole process is carried out for a total of 10 seconds; funds transferred and snapshots taken are displayed to the user. Ultimately, an output directory will be created with network process logs and GoVector logs, which can be useful for monitoring, verifying, diagnosing, and replaying distributed system states.
+Then, this program calculates a snapshot of financial transactions based on the Chandy-Lamport algorithm.
 
 This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
 among the nodes to perform the global snapshot.
