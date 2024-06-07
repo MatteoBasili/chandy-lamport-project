@@ -1,4 +1,4 @@
-# Chandy-Lamport distributed algorithm project
+# Chandy-Lamport distributed algorithm
 The Chandy-Lamport distributed algorithm is a famous algorithm to record a global consistent snapshot of a distributed system/application:<br>
 a snapshot records the local state of each process along with the state of each communication channel used by the processes to communicate.
 
