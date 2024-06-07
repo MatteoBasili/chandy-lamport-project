@@ -49,7 +49,7 @@ Code](https://golang.org/doc/code.html).
    This will merge the individual log files and create the file `output/GoVector/completeGoVectorLog.log` which can be used to print the application-generated trace of the Chandy-Lamport algorithm to [Shiviz](https://bestchai.bitbucket.io/shiviz/).
 <br>
 Here is an example screenshot of the ShiViz output generated from a run of the application:
-![ShivizExample.png](.images/shiviz-screen.png)
+![ShivizScreen.png](.images/shiviz-screen.png)
 
 
 ## Dependencies
