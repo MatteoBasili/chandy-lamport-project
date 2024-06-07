@@ -22,12 +22,16 @@ Then, this program calculates a snapshot of financial transactions based on the 
 For a more detailed specification of the system, please see the report.
 
 
+## Setup
+To run the code you must have a correctly configured go development
+environment. See [How to Write Go
+Code](https://golang.org/doc/code.html).
+<br><br>
+Once you set up your environment, first configure your network by editing the `net_config.json` file: for each node it is necessary to enter the index within the network (starting from 0), the name (“P” + node index), the IP address, the RPC port and the port of the application that manages the node same; then, it is necessary to enter the initial balance of the nodes and the number of attempts for the connection between the system components ("sendAttempts"), beyond which the system crushes.
+
+## Usage
+
+
 ## Dependencies
 This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
 among the nodes to perform the global snapshot.
-
-
-## Setup
-
-
-## Usage
