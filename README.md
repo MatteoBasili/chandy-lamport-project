@@ -47,7 +47,7 @@ Code](https://golang.org/doc/code.html).
    $ ./merge-output.sh
    ```
    This will merge the individual log files and create the file `output/GoVector/completeGoVectorLog.log` which can be used to print the application-generated trace of the Chandy-Lamport algorithm to [Shiviz](https://bestchai.bitbucket.io/shiviz/).
-6) 
+   
 
 ## Dependencies
 This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
