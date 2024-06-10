@@ -30,18 +30,23 @@ Code](https://golang.org/doc/code.html).
 * Once you set up your environment, first configure your network by editing the `net_config.json` file: for each node it is necessary to enter the index within the network (starting from 0), the name (“P” + node index), the IP address, the RPC port and the port of the application that manages the node same; then, it is necessary to enter the initial balance of the nodes and the number of attempts for the connection between the system components ("sendAttempts"), beyond which the system crushes.
 
 ## Usage
-1) Launch the network nodes. You can do this by running the following command from the folder where the project is located:
+1) Launch the network nodes. The command to launch a node is as follows:
+   
+   ```
+   $ go run ./src/main/node_app.go <node net index> <application port> net_config.json
+   ```
+   To simplify, there is a bash script that takes care of launching all the processes on the network. You can do this by running the following command from the folder where the project is located:
 
    ```
    $ ./run-processes.sh
    ```
    Once the command is executed, wait until it appears that all processes are ready.
-2) Launch the application with the command:
+3) Launch the application with the command:
 
    ```
    $ go run app.go
    ```
-3) Run the command:
+4) Run the command:
 
    ```
    $ ./merge-output.sh
