@@ -14,6 +14,11 @@ Reference article:
 ```
 
 
+## Dependencies
+This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
+among the nodes to perform the global snapshot.
+
+
 ## Properties
 This project is about design, implementation in Go, and evaluation of the Chandy-Lamport algorithm for snapshotting the global state of a distributed system.
 The solution is tested on a pipelined deployed application that works in this way: all processes (or nodes) start with the same (integer) balance (in dollars); every second, each process transfers funds (a random integer between 1 and 100 dollars) to another random process; a process, chosen also randomly, takes a snapshot of the system every two seconds. This whole process lasts 10 seconds. The transferred funds and the collected snapshots are displayed to the user. Ultimately, an `output` directory will be created with network process logs and GoVector logs, which can be useful for monitoring, verifying, diagnosing, and replaying distributed system states.<br>
@@ -27,7 +32,7 @@ For a more detailed specification of the system, please see the [Report](https:/
 environment. See [How to Write Go
 Code](https://golang.org/doc/code.html).
 <br><br>
-* Once you set up your environment, first configure your network by editing the `net_config.json` file: for each node it is necessary to enter the index within the network (starting from 0), the name (“P” + node index), the IP address, the RPC port and the port of the application that manages the node same; then, it is necessary to enter the initial balance of the nodes and the number of attempts for the connection between the system components ("sendAttempts"), beyond which the system crushes.
+* Once you set up your environment, first configure your network by editing the `net_config.json` file: for each node it is necessary to insert the index within the network (starting from 0), the name (“P” + node index), the IP address, the RPC port and the port of the application that manages the node; then, it is necessary to insert the initial balance of the nodes and the number of connection attempts  ("sendAttempts") between the system components, beyond which the system crushes.
 
 ## Usage
 1) Launch the network nodes. The command to launch a node is as follows:
@@ -41,7 +46,7 @@ Code](https://golang.org/doc/code.html).
    ```
    $ ./run-processes.sh
    ```
-   Once the command is executed, wait until it appears that all processes are ready.
+   Once the command is executed, wait until the screen shows that all the processes are ready.
 3) Launch the application with the command:
 
    ```
@@ -58,8 +63,3 @@ Here is an example screenshot of the ShiViz output generated from a run of the a
 <br><br>
 <img src='./.images/shiviz-screen.png'>
 <br>
-
-
-## Dependencies
-This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
-among the nodes to perform the global snapshot.
