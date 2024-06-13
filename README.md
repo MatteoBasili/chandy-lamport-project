@@ -15,13 +15,13 @@ Reference article:
 
 
 ## Dependencies
-This project use [GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
+[GoVector](https://github.com/DistributedClocks/GoVector) for drawing the trace of the network messages sent 
 among the nodes to perform the global snapshot.
 
 
 ## Properties
-This project is about design, implementation in Go, and evaluation of the Chandy-Lamport algorithm for snapshotting the global state of a distributed system.
-The solution is tested on a pipelined deployed application that works in this way: all processes (or nodes) start with the same (integer) balance (in dollars); every second, each process transfers funds (a random integer between 1 and 100 dollars) to another random process; a process, chosen also randomly, takes a snapshot of the system every two seconds. This whole process lasts 10 seconds. The transferred funds and the collected snapshots are displayed to the user. Ultimately, an `output` directory will be created with network process logs and GoVector logs, which can be useful for monitoring, verifying, diagnosing, and replaying distributed system states.<br>
+Design, implementation in Go, and evaluation of the Chandy-Lamport algorithm for snapshotting the global state of a distributed system.
+The solution is tested on a pipelined distributed application that works in this way: all processes (or nodes) start with the same (integer) balance (in dollars); every second, each process transfers funds (a random integer between 1 and 100 dollars) to another random process; a process, chosen also randomly, takes a snapshot of the system every two seconds. This whole process lasts 10 seconds. The transferred funds and the collected snapshots are displayed to the user. Ultimately, an `output` directory will be created with network process logs and GoVector logs, which can be useful for monitoring, verifying, diagnosing, and replaying distributed system states.<br>
 Then, this program calculates snapshots of financial transactions based on the Chandy-Lamport algorithm.
 
 For a more detailed specification of the system, please see the [Report](https://github.com/MatteoBasili/chandy-lamport-project/blob/master/Report.pdf).
