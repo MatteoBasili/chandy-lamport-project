@@ -35,8 +35,8 @@ Code](https://golang.org/doc/code.html).
    ```
    $ go run ./src/main/node_app.go <node net index> <application port> net_config.json
    ```
-   To simplify, there is a bash script that takes care of launching all the processes on the network. You can do this by running the following command from the folder where the project is located
-   (if necessary, first change the permissions to run the file: `chmod +x run-processes.sh`):
+   To simplify, there is a bash script that takes care of launching all the processes on the network.<br>
+   You can do this by running the following command from the folder where the project is located (if necessary, first change the permissions to run the file: `chmod +x run-processes.sh`):
 
    ```
    $ ./run-processes.sh
