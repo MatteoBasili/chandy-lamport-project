@@ -1,7 +1,7 @@
 package utils
 
 type MarkChannels struct {
-	SendCh chan AppMessage // process <-- Marker --> snap
+	SendCh chan AppMessage // snap --- Marker --> process
 	RecvCh chan AppMessage // process --- mark|msg --> snap
 }
 
